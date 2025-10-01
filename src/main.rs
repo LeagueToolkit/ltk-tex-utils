@@ -1,4 +1,7 @@
-use clap::{Parser, Subcommand};
+use clap::{
+    ColorChoice, CommandFactory, FromArgMatches, Parser, Subcommand,
+    builder::{Styles, styling::AnsiColor},
+};
 use league_toolkit::texture::tex::MipmapFilter;
 use tracing::{Level, level_filters::LevelFilter};
 use tracing_subscriber::prelude::*;
@@ -61,7 +64,19 @@ pub enum Commands {
 
 fn main() {
     initialize_tracing().unwrap();
-    let args = Args::parse();
+
+    let styles = Styles::styled()
+        .header(AnsiColor::Yellow.on_default().bold())
+        .usage(AnsiColor::Green.on_default().bold())
+        .literal(AnsiColor::Cyan.on_default())
+        .placeholder(AnsiColor::Blue.on_default());
+
+    let matches = Args::command()
+        .styles(styles)
+        .color(ColorChoice::Auto)
+        .get_matches();
+
+    let args = Args::from_arg_matches(&matches).expect("failed to parse arguments");
 
     // TODO: Handle commands
     match args.command {

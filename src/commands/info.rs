@@ -13,9 +13,10 @@ pub fn info(options: InfoCommandOptions) {
         Ok(f) => f,
         Err(err) => {
             eprintln!(
-                "{} {}",
+                "{} failed to open '{}': {}",
                 "error:".bold().red(),
-                format!("failed to open '{}': {}", path, err)
+                path,
+                err
             );
             return;
         }
@@ -26,9 +27,10 @@ pub fn info(options: InfoCommandOptions) {
         Ok(tex) => tex,
         Err(err) => {
             eprintln!(
-                "{} {}",
+                "{} failed to read TEX from '{}': {:?}",
                 "error:".bold().red(),
-                format!("failed to read TEX from '{}': {:?}", path, err)
+                path,
+                err
             );
             return;
         }
