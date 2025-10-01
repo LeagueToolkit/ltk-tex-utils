@@ -4,3 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+clap = { version = "4.5.20", features = ["derive"] }
+eyre = "0.6.12"
+color-eyre = "0.6"
+colored = "2"
+league-toolkit = { git = "https://github.com/LeagueToolkit/league-toolkit", branch = "feat/tex-encode", features = [
+    "texture",
+    "file",
+] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.2", features = ["local-time"] }
