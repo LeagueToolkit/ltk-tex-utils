@@ -10,9 +10,21 @@ Small CLI utilities for working with League of Legends TEX textures, powered by 
 
 ### Install
 
+On Windows (recommended):
+
+PowerShell (user scope):
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/LeagueToolkit/ltk-tex-utils/main/scripts/install-windows.ps1 | iex
+```
+
+This downloads the latest release, installs it to `%LOCALAPPDATA%\LeagueToolkit\ltk-tex-utils`, adds a stable `bin` shim to your user `PATH`, and makes `ltk-tex-utils` available in new terminals.
+
+From source (all platforms):
+
 Prerequisites: Rust (stable) with `cargo`.
 
-- From a local clone (recommended for now):
+- From a local clone:
 
 ```bash
 cargo install --path .
