@@ -57,12 +57,14 @@ pub enum Commands {
         input: String,
 
         /// Output file path
+        /// The output directory will be created if it doesn't exist
+        /// The output format will be determined by the file extension
         #[arg(short, long)]
         output: String,
     },
 }
 
-fn main() {
+fn main() -> eyre::Result<()> {
     initialize_tracing().unwrap();
 
     let styles = Styles::styled()
@@ -93,9 +95,11 @@ fn main() {
             format,
             generate_mipmaps,
             mipmap_filter,
-        }),
-        Commands::Decode { input, output } => decode(DecodeCommandOptions { input, output }),
+        })?,
+        Commands::Decode { input, output } => decode(DecodeCommandOptions { input, output })?,
     }
+
+    Ok(())
 }
 
 fn initialize_tracing() -> eyre::Result<()> {

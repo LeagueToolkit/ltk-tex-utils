@@ -17,6 +17,16 @@ pub enum ValidFormat {
     Bgra8,
 }
 
+impl Into<Format> for ValidFormat {
+    fn into(self) -> Format {
+        match self {
+            ValidFormat::Bc1 => Format::Bc1,
+            ValidFormat::Bc3 => Format::Bc3,
+            ValidFormat::Bgra8 => Format::Bgra8,
+        }
+    }
+}
+
 pub fn parse_mipmap_filter(s: &str) -> Result<MipmapFilter, String> {
     match s.to_lowercase().as_str() {
         "nearest" => Ok(MipmapFilter::Nearest),
@@ -30,11 +40,11 @@ pub fn parse_mipmap_filter(s: &str) -> Result<MipmapFilter, String> {
     }
 }
 
-pub fn parse_format(s: &str) -> Result<Format, String> {
+pub fn parse_format(s: &str) -> Result<ValidFormat, String> {
     match s.to_lowercase().as_str() {
-        "bc1" => Ok(Format::Bc1),
-        "bc3" => Ok(Format::Bc3),
-        "bgra8" => Ok(Format::Bgra8),
+        "bc1" => Ok(ValidFormat::Bc1),
+        "bc3" => Ok(ValidFormat::Bc3),
+        "bgra8" => Ok(ValidFormat::Bgra8),
         _ => Err(format!(
             "Invalid format: {}. Valid options: bc1, bc3, bgra8 (ETC1 and ETC2 are not supported)",
             s
