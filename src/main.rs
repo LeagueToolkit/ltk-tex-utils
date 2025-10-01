@@ -3,6 +3,8 @@ use clap::{
     builder::{Styles, styling::AnsiColor},
 };
 use league_toolkit::texture::tex::MipmapFilter;
+use std::path::Path;
+use tracing::info;
 use tracing::{Level, level_filters::LevelFilter};
 use tracing_subscriber::prelude::*;
 
@@ -67,6 +69,13 @@ pub enum Commands {
 fn main() -> eyre::Result<()> {
     initialize_tracing().unwrap();
 
+    // Drag-and-drop auto mode (Windows): if invoked with a single file path argument,
+    // auto-route to decode/encode based on extension and derive the output by changing the extension.
+    if let Some(result) = try_handle_auto_mode()? {
+        result?;
+        return Ok(());
+    }
+
     let styles = Styles::styled()
         .header(AnsiColor::Yellow.on_default().bold())
         .usage(AnsiColor::Green.on_default().bold())
@@ -100,6 +109,78 @@ fn main() -> eyre::Result<()> {
     }
 
     Ok(())
+}
+
+/// Attempts to handle a single positional argument invocation (drag-and-drop style).
+/// Returns Ok(Some(result)) if handled, Ok(None) to continue with normal clap parsing.
+fn try_handle_auto_mode() -> eyre::Result<Option<eyre::Result<()>>> {
+    let mut args = std::env::args_os();
+    let _exe = args.next();
+    let first = match args.next() {
+        Some(a) => a,
+        None => return Ok(None),
+    };
+    // Ensure exactly one argument
+    if args.next().is_some() {
+        return Ok(None);
+    }
+
+    let input_os = first;
+    let input_path = Path::new(&input_os);
+    let input_str = input_path.to_string_lossy().to_string();
+
+    let ext = input_path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_lowercase());
+
+    match ext.as_deref() {
+        Some("dds") => Ok(Some(Err(eyre::eyre!(
+            ".dds files are not supported for decoding"
+        )))),
+        Some("tex") => {
+            let mut out_path = input_path.to_path_buf();
+            out_path.set_extension("png");
+            let output = out_path.to_string_lossy().to_string();
+            info!(
+                input = %input_str,
+                output = %output,
+                "auto mode: decoding .tex to .png"
+            );
+            let res = crate::commands::decode(crate::commands::DecodeCommandOptions {
+                input: input_str,
+                output,
+            });
+            Ok(Some(res))
+        }
+        _ => {
+            let mut out_path = input_path.to_path_buf();
+            out_path.set_extension("tex");
+            let output = out_path.to_string_lossy().to_string();
+
+            let format = ValidFormat::Bc3;
+            let generate_mipmaps = true;
+            let mipmap_filter = MipmapFilter::Lanczos3;
+
+            info!(
+                input = %input_str,
+                output = %output,
+                format = ?format,
+                generate_mipmaps = generate_mipmaps,
+                mipmap_filter = ?mipmap_filter,
+                "auto mode: encoding image to .tex"
+            );
+
+            let res = crate::commands::encode(crate::commands::EncodeCommandOptions {
+                input: input_str,
+                output,
+                format,
+                generate_mipmaps,
+                mipmap_filter,
+            });
+            Ok(Some(res))
+        }
+    }
 }
 
 fn initialize_tracing() -> eyre::Result<()> {
