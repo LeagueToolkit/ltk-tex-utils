@@ -17,9 +17,9 @@ pub enum ValidFormat {
     Bgra8,
 }
 
-impl Into<Format> for ValidFormat {
-    fn into(self) -> Format {
-        match self {
+impl From<ValidFormat> for Format {
+    fn from(val: ValidFormat) -> Self {
+        match val {
             ValidFormat::Bc1 => Format::Bc1,
             ValidFormat::Bc3 => Format::Bc3,
             ValidFormat::Bgra8 => Format::Bgra8,
