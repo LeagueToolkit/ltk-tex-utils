@@ -125,8 +125,22 @@ fn try_handle_auto_mode() -> eyre::Result<Option<eyre::Result<()>>> {
         return Ok(None);
     }
 
+    // If the single argument looks like a flag (e.g. --help, -h, /?),
+    // defer to the normal CLI parser so help/version work as expected.
+    let first_str_lossy = first.to_string_lossy();
+    if first_str_lossy.starts_with('-') || first_str_lossy.starts_with('/') {
+        return Ok(None);
+    }
+
     let input_os = first;
     let input_path = Path::new(&input_os);
+
+    // Only trigger auto-mode if the argument resolves to an existing path.
+    // This prevents accidental activation on random single tokens.
+    if !input_path.exists() {
+        return Ok(None);
+    }
+
     let input_str = input_path.to_string_lossy().to_string();
 
     let ext = input_path
