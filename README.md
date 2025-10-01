@@ -1,4 +1,9 @@
-## ltk-tex-utils
+<div align="center">
+  <a href="https://github.com/LeagueToolkit">
+    <img src="https://avatars.githubusercontent.com/u/28510182?s=200&v=4" alt="LeagueToolkit logo" width="96" height="96">
+  </a>
+  <h1>ltk-tex-utils</h1>
+</div>
 
 Small CLI utilities for working with League of Legends TEX textures, powered by `league-toolkit`.
 
