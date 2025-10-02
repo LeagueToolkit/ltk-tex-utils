@@ -4,3 +4,8 @@ git_tag_enable = true
 git_release_enable = false
 changelog_update = true
 changelog_path = "CHANGELOG.md"
+
+[[package]]
+name = "ltk-tex-thumb-handler"
+git_release_enable = true
+publish = false
