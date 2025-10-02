@@ -12,6 +12,7 @@ Small CLI utilities for working with League of Legends TEX textures, powered by 
 - **Encode**: convert standard images (PNG/JPG/TGA/BMP/…) into `.tex`
 - **Decode**: convert `.tex` back to common image formats (driven by output file extension)
 - **Mipmaps**: optional generation with selectable filters
+- **Windows Thumbnail Provider**: show `.tex` file previews directly in Windows Explorer
 
 ### Install
 
@@ -25,21 +26,30 @@ iwr -useb https://raw.githubusercontent.com/LeagueToolkit/ltk-tex-utils/main/scr
 
 This downloads the latest release, installs it to `%LOCALAPPDATA%\LeagueToolkit\ltk-tex-utils`, adds a stable `bin` shim to your user `PATH`, and makes `ltk-tex-utils` available in new terminals.
 
-From source (all platforms):
+### Windows Explorer Thumbnail Provider
 
-Prerequisites: Rust (stable) with `cargo`.
+On Windows, you can install a thumbnail provider that shows previews of `.tex` files directly in Windows Explorer.
 
-- From a local clone:
+**Installation (requires administrator privileges):**
 
-```bash
-cargo install --path .
+```powershell
+# Run PowerShell as Administrator, then:
+iwr -useb https://raw.githubusercontent.com/LeagueToolkit/ltk-tex-utils/main/scripts/install-thumbnail-handler.ps1 | iex
 ```
 
-Or build locally and use the binary from `target/release`:
+This will:
+- Download the `ltk-tex-thumb-handler.dll` from the latest release
+- Install it to `%ProgramFiles%\LeagueToolkit\ltk-tex-thumb-handler`
+- Register the COM DLL with Windows Explorer
 
-```bash
-cargo build --release
-# Binary: target/release/ltk-tex-utils(.exe)
+**Note:** You may need to restart Windows Explorer or your computer for thumbnails to appear.
+
+**Uninstallation:**
+
+To uninstall the thumbnail handler, run PowerShell as Administrator and execute:
+
+```powershell
+regsvr32.exe /u "%ProgramFiles%\LeagueToolkit\ltk-tex-thumb-handler\ltk_tex_thumb_handler.dll"
 ```
 
 ### Usage
