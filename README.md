@@ -30,6 +30,10 @@ This downloads the latest release, installs it to `%LOCALAPPDATA%\LeagueToolkit\
 
 On Windows, you can install a thumbnail provider that shows previews of `.tex` files directly in Windows Explorer.
 
+<div align="center">
+  <img src="assets/thumb-provider-preview.webp" alt="TEX thumbnail provider preview in Windows Explorer" width="800">
+</div>
+
 **Installation (requires administrator privileges):**
 
 ```powershell
