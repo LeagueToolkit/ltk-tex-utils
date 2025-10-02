@@ -9,8 +9,8 @@ use windows::Win32::Foundation::*;
 use windows::Win32::System::Com::*;
 use windows::core::*;
 
-use crate::{DllAddRef, DllRelease, CLSID_TEX_THUMB_HANDLER};
 use crate::thumbnail_provider::CTexThumbProvider_CreateInstance;
+use crate::{CLSID_TEX_THUMB_HANDLER, DllAddRef, DllRelease};
 
 pub type PfnCreateInstance = fn(*const GUID, *mut *mut c_void) -> HRESULT;
 
@@ -97,4 +97,3 @@ impl Drop for CClassFactory {
         DllRelease();
     }
 }
-
