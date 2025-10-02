@@ -45,7 +45,10 @@ Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tmpPath -UseBasicPa
 if (Test-Path -LiteralPath $dllPath) {
     Write-Host "Unregistering existing DLL..." -ForegroundColor Yellow
     try {
-        & regsvr32.exe /s /u $dllPath
+        $unregProcess = Start-Process -FilePath "regsvr32.exe" -ArgumentList "/s", "/u", "`"$dllPath`"" -Wait -PassThru -NoNewWindow
+        if ($unregProcess.ExitCode -ne 0) {
+            Write-Warning "Failed to unregister old DLL. Exit code: $($unregProcess.ExitCode)"
+        }
     } catch {
         Write-Warning "Failed to unregister old DLL: $($_.Exception.Message)"
     }
@@ -61,9 +64,9 @@ if (!(Test-Path -LiteralPath $dllPath)) {
 
 # Register the COM DLL
 Write-Host "Registering COM DLL with Windows..." -ForegroundColor Yellow
-$regResult = & regsvr32.exe /s $dllPath
-if ($LASTEXITCODE -ne 0) {
-    throw "Failed to register DLL. regsvr32 returned exit code: $LASTEXITCODE"
+$regProcess = Start-Process -FilePath "regsvr32.exe" -ArgumentList "/s", "`"$dllPath`"" -Wait -PassThru -NoNewWindow
+if ($regProcess.ExitCode -ne 0) {
+    throw "Failed to register DLL. regsvr32 returned exit code: $($regProcess.ExitCode)"
 }
 
 Write-Host "Successfully installed and registered ltk-tex-thumb-handler $version" -ForegroundColor Green
