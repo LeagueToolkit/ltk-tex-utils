@@ -2,7 +2,7 @@
 // IMAGE PROCESSING AND BITMAP OPERATIONS
 // =============================================================================
 
-use league_toolkit::texture::Tex;
+use league_toolkit::texture::{Dds, Tex};
 use std::ffi::c_void;
 use std::io::Cursor;
 use std::{mem, ptr};
@@ -45,6 +45,37 @@ pub fn decode_tex_file(bytes: &[u8]) -> Result<(Vec<u8>, u32, u32)> {
     let height = rgba.height();
     let data = rgba.into_raw();
     Ok((data, width, height))
+}
+
+/// Decode DDS file to RGBA image data
+pub fn decode_dds_file(bytes: &[u8]) -> Result<(Vec<u8>, u32, u32)> {
+    let mut cursor = Cursor::new(bytes);
+    let dds = Dds::from_reader(&mut cursor).map_err(|_| Error::from(E_FAIL))?;
+    let surface = dds.decode_mipmap(0).map_err(|_| Error::from(E_FAIL))?;
+    let rgba = surface.into_image().map_err(|_| Error::from(E_FAIL))?;
+    let width = rgba.width();
+    let height = rgba.height();
+    let data = rgba.into_raw();
+    Ok((data, width, height))
+}
+
+/// Detect file type and decode to RGBA image data
+/// Supports both TEX and DDS files
+pub fn decode_texture_file(bytes: &[u8]) -> Result<(Vec<u8>, u32, u32)> {
+    // Check magic bytes to determine file type
+    if bytes.len() < 4 {
+        return Err(Error::from(E_FAIL));
+    }
+
+    let magic = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+
+    if magic == Tex::MAGIC {
+        decode_tex_file(bytes)
+    } else if magic == Dds::MAGIC {
+        decode_dds_file(bytes)
+    } else {
+        Err(Error::from(E_FAIL))
+    }
 }
 
 /// Scale RGBA image to fit within thumbnail size

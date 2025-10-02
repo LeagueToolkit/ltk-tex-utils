@@ -1,7 +1,3 @@
-// =============================================================================
-// TEX THUMBNAIL PROVIDER (following Microsoft's CRecipeThumbProvider pattern)
-// =============================================================================
-
 use std::ffi::c_void;
 use std::sync::atomic::AtomicI32;
 use windows::Win32::Foundation::*;
@@ -68,7 +64,7 @@ impl IThumbnailProvider_Impl for CTexThumbProvider_Impl {
         let stream = stream_guard.as_ref().ok_or(Error::from(E_UNEXPECTED))?;
 
         let bytes = unsafe { read_stream_to_bytes(stream)? };
-        let (rgba, width, height) = decode_tex_file(&bytes)?;
+        let (rgba, width, height) = decode_texture_file(&bytes)?;
         let (scaled_rgba, scaled_w, scaled_h) = scale_image(&rgba, width, height, cx);
         let hbmp = unsafe { create_hbitmap_from_rgba(&scaled_rgba, scaled_w, scaled_h)? };
 

@@ -5,14 +5,14 @@
   <h1>ltk-tex-utils</h1>
 </div>
 
-Small CLI utilities for working with League of Legends TEX textures, powered by `league-toolkit`.
+Small CLI utilities for working with League of Legends TEX textures and DDS files, powered by `league-toolkit`.
 
 ### Features
-- **Inspect TEX**: print format, dimensions, mipmaps, and resource type
+- **Inspect TEX & DDS**: print format, dimensions, mipmaps, and resource type
 - **Encode**: convert standard images (PNG/JPG/TGA/BMP/…) into `.tex`
-- **Decode**: convert `.tex` back to common image formats (driven by output file extension)
+- **Decode**: convert `.tex` and `.dds` files back to common image formats (driven by output file extension)
 - **Mipmaps**: optional generation with selectable filters
-- **Windows Thumbnail Provider**: show `.tex` file previews directly in Windows Explorer
+- **Windows Thumbnail Provider**: show `.tex` and `.dds` file previews directly in Windows Explorer
 
 ### Install
 
@@ -28,7 +28,7 @@ This downloads the latest release, installs it to `%LOCALAPPDATA%\LeagueToolkit\
 
 ### Windows Explorer Thumbnail Provider
 
-On Windows, you can install a thumbnail provider that shows previews of `.tex` files directly in Windows Explorer.
+On Windows, you can install a thumbnail provider that shows previews of `.tex` and `.dds` files directly in Windows Explorer.
 
 <div align="center">
   <img src="assets/thumb-provider-preview.webp" alt="TEX thumbnail provider preview in Windows Explorer" width="800">
@@ -67,10 +67,11 @@ ltk-tex-utils --help
 Subcommands:
 
 #### info
-Prints basic metadata about a TEX file.
+Prints basic metadata about a TEX or DDS file.
 
 ```bash
 ltk-tex-utils info -i path/to/texture.tex
+ltk-tex-utils info -i path/to/texture.dds
 ```
 
 Example output:
@@ -113,15 +114,17 @@ ltk-tex-utils encode -i mask.png -o mask.tex -f bc1 --mipmap-filter lanczos3
 ```
 
 #### decode
-Decode a `.tex` file into a standard image.
+Decode a `.tex` or `.dds` file into a standard image.
 
 ```bash
 ltk-tex-utils decode -i path/to/input.tex -o path/to/output.png
+ltk-tex-utils decode -i path/to/input.dds -o path/to/output.png
 ```
 
 Notes:
 - The output image format is inferred from the file extension (e.g., `.png`, `.jpg`, `.tiff`).
 - Currently decodes the top-level mip (mip 0).
+- Supports both TEX and DDS files.
 
 ### Supported formats and filters
 

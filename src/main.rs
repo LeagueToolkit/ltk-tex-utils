@@ -149,17 +149,16 @@ fn try_handle_auto_mode() -> eyre::Result<Option<eyre::Result<()>>> {
         .map(|s| s.to_lowercase());
 
     match ext.as_deref() {
-        Some("dds") => Ok(Some(Err(eyre::eyre!(
-            ".dds files are not supported for decoding"
-        )))),
-        Some("tex") => {
+        Some("dds") | Some("tex") => {
             let mut out_path = input_path.to_path_buf();
             out_path.set_extension("png");
             let output = out_path.to_string_lossy().to_string();
+            let file_type = ext.unwrap();
             info!(
                 input = %input_str,
                 output = %output,
-                "auto mode: decoding .tex to .png"
+                file_type = %file_type,
+                "auto mode: decoding texture to .png"
             );
             let res = crate::commands::decode(crate::commands::DecodeCommandOptions {
                 input: input_str,

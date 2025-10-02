@@ -96,11 +96,24 @@ pub unsafe fn register_server(dll_register_server_fn: *const u16) -> Result<()> 
             None::<String>,
             SZ_CLSID_TEXTHUMBHANDLER,
         ),
+        // .dds file association with IThumbnailProvider
+        RegistryEntry::new(
+            HKEY_CLASSES_ROOT,
+            ".dds\\ShellEx\\{e357fccd-a995-4576-b01f-234630154e96}",
+            None::<String>,
+            SZ_CLSID_TEXTHUMBHANDLER,
+        ),
     ];
 
-    // Register all entries
-    for entry in &entries {
-        create_reg_key_and_set_value(entry)?;
+    for (i, entry) in entries.iter().enumerate() {
+        if let Err(e) = create_reg_key_and_set_value(entry) {
+            // If this is the .dds registration (last entry), log but don't fail
+            if i == entries.len() - 1 && entry.pszKeyName.contains(".dds") {
+                continue;
+            }
+
+            return Err(e);
+        }
     }
 
     // Approve shell extension (Windows requirement)
@@ -135,6 +148,7 @@ pub unsafe fn unregister_server() -> Result<()> {
 
     let _ = hkcr.delete_subkey_all(format!("CLSID\\{}", SZ_CLSID_TEXTHUMBHANDLER));
     let _ = hkcr.delete_subkey_all(".tex\\ShellEx\\{e357fccd-a995-4576-b01f-234630154e96}");
+    let _ = hkcr.delete_subkey_all(".dds\\ShellEx\\{e357fccd-a995-4576-b01f-234630154e96}");
 
     // Remove from approved extensions
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
