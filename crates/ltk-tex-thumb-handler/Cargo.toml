@@ -1,0 +1,33 @@
+[package]
+name = "ltk-tex-thumb-handler"
+version = "0.0.1"
+edition = "2024"
+publish = false
+
+[lib]
+name = "ltk_tex_thumb_handler"
+crate-type = ["cdylib"]
+
+[package.metadata]
+description = "Windows Explorer thumbnail provider COM DLL for LeagueToolkit .tex previews"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58.0", features = [
+    "implement",
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Ole",
+    "Win32_System_Registry",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_PropertiesSystem",
+    "Win32_Graphics_Gdi",
+] }
+windows-core = "0.58.0"
+winreg = { version = "0.52", optional = false }
+chrono = "0.4"
+league-toolkit = { git = "https://github.com/LeagueToolkit/league-toolkit", rev = "d44b64f7a484081473a3e4a71a7e96d5ca0f0615", features = [
+    "texture",
+    "file",
+] }

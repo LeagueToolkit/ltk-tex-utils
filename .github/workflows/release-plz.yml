@@ -173,6 +173,9 @@ jobs:
           components: rustfmt,clippy
       - name: Build Release Binary
         run: cargo build --verbose --release --target ${{ matrix.target }}
+      - name: Build Windows Thumbnail Handler DLL
+        if: matrix.os == 'windows-latest'
+        run: cargo build --verbose --release --target ${{ matrix.target }} -p ltk-tex-thumb-handler
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
@@ -181,4 +184,14 @@ jobs:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
           asset_path: ./target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
           asset_name: ${{ matrix.asset_name }}
+          asset_content_type: application/octet-stream
+      - name: Upload Windows Thumbnail Handler DLL
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./target/${{ matrix.target }}/release/ltk_tex_thumb_handler.dll
+          asset_name: ltk-tex-thumb-handler.dll
           asset_content_type: application/octet-stream

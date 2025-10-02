@@ -17,3 +17,8 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.2", features = ["local-time"] }
 
 image = { version = "0.25.2" }
+
+[workspace]
+members = [
+    "crates/*",
+]
