@@ -29,7 +29,7 @@ $match = [regex]::Match($tag, '\d+\.\d+\.\d+([\-\+][A-Za-z0-9\.-]+)?')
 $version = if ($match.Success) { $match.Value } else { $tag.TrimStart('v') }
 
 # Find the thumbnail handler DLL asset
-$assetName = "ltk-tex-thumb-handler.dll"
+$assetName = "ltk_tex_thumb_handler.dll"
 $asset = $release.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
 if (-not $asset) {
     throw "Could not find $assetName in the latest release. Make sure you're using a release that includes the thumbnail handler."
