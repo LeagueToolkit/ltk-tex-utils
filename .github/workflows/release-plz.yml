@@ -36,7 +36,7 @@ jobs:
   release-plz-release:
     name: Release-plz Release
     runs-on: ubuntu-latest
-    if: ${{ github.repository_owner == 'LeagueToolkit' && contains(github.event.head_commit.message, 'chore(release)') }}
+    if: ${{ github.repository_owner == 'LeagueToolkit' }}
     permissions:
       contents: write
       pull-requests: read
@@ -65,7 +65,7 @@ jobs:
     permissions:
       contents: write
     outputs:
-      upload_url: ${{ steps.get_or_create_release.outputs.upload_url }}
+      upload_url: ${{ steps.get_or_create_release.outputs.result }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -75,16 +75,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION=$(awk -F '"' '/^version[[:space:]]*=/ {print $2; exit}' Cargo.toml)
+          MANIFEST="crates/ltk-tex-utils/Cargo.toml"
+          VERSION=$(awk -F '"' '/^version[[:space:]]*=/ {print $2; exit}' "$MANIFEST")
+          if [[ -z "${VERSION:-}" ]]; then
+            echo "Failed to read version from $MANIFEST" >&2
+            exit 1
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=ltk-tex-utils-v$VERSION" >> $GITHUB_OUTPUT
       - name: Extract latest changelog section for this tag
         id: changelog
         shell: bash
         run: |
           set -euo pipefail
           TAG="${{ steps.tag.outputs.tag }}"
-          FILE="CHANGELOG.md"
+          FILE="crates/ltk-tex-utils/CHANGELOG.md"
           OUT="CHANGELOG_LATEST.md"
           if [[ ! -f "$FILE" ]]; then
             echo "Changelog not found. Creating empty body." > "$OUT"
@@ -119,6 +124,7 @@ jobs:
           TAG: ${{ steps.tag.outputs.tag }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          result-encoding: string
           script: |
             const fs = require('fs');
             const { owner, repo } = context.repo;
@@ -141,7 +147,7 @@ jobs:
                 prerelease: false,
               });
             }
-            core.setOutput('upload_url', release.data.upload_url);
+            return release.data.upload_url;
 
   build-and-upload:
     name: Build and Upload
@@ -167,7 +173,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
           components: rustfmt,clippy
