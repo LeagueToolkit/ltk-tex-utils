@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/LeagueToolkit/ltk-tex-utils/releases/tag/ltk-tex-utils-v0.2.0) - 2025-12-12
+
+### Other
+
+- bump version to 0.2.0
+- release v0.1.4
+- move cli under /crates
+
 ## [0.1.4](https://github.com/LeagueToolkit/ltk-tex-utils/releases/tag/ltk-tex-utils-v0.1.4) - 2025-12-12
 
 ### Other
