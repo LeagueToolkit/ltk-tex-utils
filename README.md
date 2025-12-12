@@ -88,8 +88,7 @@ Encode an image into `.tex`.
 
 ```bash
 ltk-tex-utils encode \
-  -i path/to/input.png \
-  -o path/to/output.tex \
+  path/to/input.png \
   -f <bc1|bc3|bgra8> \
   -m <true|false> \
   --mipmap-filter <nearest|triangle|catmullrom|lanczos3>
@@ -98,30 +97,32 @@ ltk-tex-utils encode \
 Notes:
 - `-m/--generate-mipmaps` defaults to `true`. Pass `-m false` to disable mipmap generation.
 - The input image is read via the `image` crate and supports common formats like PNG, JPEG, BMP, TIFF, TGA, etc.
+- If `-o/--output` is not provided, output is written next to the input with the same name and a `.tex` extension.
 
 Examples:
 
 ```bash
 # BC3 with default mipmaps (triangle)
-ltk-tex-utils encode -i albedo.png -o albedo.tex -f bc3
+ltk-tex-utils encode albedo.png -f bc3
 
 # Disable mipmaps
-ltk-tex-utils encode -i icon.png -o icon.tex -f bgra8 -m false
+ltk-tex-utils encode icon.png -f bgra8 -m false
 
 # BC1 with a different mipmap filter
-ltk-tex-utils encode -i mask.png -o mask.tex -f bc1 --mipmap-filter lanczos3
+ltk-tex-utils encode mask.png -f bc1 --mipmap-filter lanczos3
 ```
 
 #### decode
 Decode a `.tex` file into a standard image.
 
 ```bash
-ltk-tex-utils decode -i path/to/input.tex -o path/to/output.png
+ltk-tex-utils decode path/to/input.tex
 ```
 
 Notes:
 - The output image format is inferred from the file extension (e.g., `.png`, `.jpg`, `.tiff`).
 - Currently decodes the top-level mip (mip 0).
+- If `-o/--output` is not provided, output is written next to the input with the same name and a `.png` extension.
 
 ### Supported formats and filters
 
@@ -145,8 +146,8 @@ Examples:
 
 ```bash
 cargo run -- info -i samples/texture.tex
-cargo run -- encode -i samples/albedo.png -o out/albedo.tex -f bc3
-cargo run -- decode -i samples/texture.tex -o out/texture.png
+cargo run -- encode samples/albedo.png -f bc3
+cargo run -- decode samples/texture.tex
 ```
 
 ### Acknowledgements

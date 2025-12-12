@@ -3,6 +3,7 @@ use clap::{
     builder::{Styles, styling::AnsiColor},
 };
 use league_toolkit::texture::tex::MipmapFilter;
+use std::ops::ControlFlow;
 use std::path::Path;
 use tracing::info;
 use tracing::{Level, level_filters::LevelFilter};
@@ -33,16 +34,27 @@ pub enum Commands {
         input: String,
     },
     Encode {
-        /// Texture to encode
-        #[arg(short, long)]
-        input: String,
+        /// Texture (image) to encode
+        #[arg(
+            short,
+            long,
+            value_name = "INPUT",
+            required_unless_present = "input_pos",
+            conflicts_with = "input_pos"
+        )]
+        input: Option<String>,
+
+        /// Texture (image) to encode (positional alternative to -i/--input)
+        #[arg(value_name = "INPUT", index = 1, required_unless_present = "input")]
+        input_pos: Option<String>,
 
         /// Output file path
-        #[arg(short, long)]
-        output: String,
+        /// Defaults to writing next to INPUT with a `.tex` extension.
+        #[arg(short, long, value_name = "OUTPUT")]
+        output: Option<String>,
 
         /// Texture format to encode to (e.g., BC1, BC3, BGRA8)
-        #[arg(short, long, value_parser = parse_format)]
+        #[arg(short, long, value_parser = parse_format, default_value = "bc3")]
         format: ValidFormat,
 
         /// Whether to generate mipmaps
@@ -54,15 +66,30 @@ pub enum Commands {
         mipmap_filter: MipmapFilter,
     },
     Decode {
-        /// Texture to decode
-        #[arg(short, long)]
-        input: String,
+        /// Texture (.tex) to decode
+        #[arg(
+            short,
+            long,
+            value_name = "INPUT",
+            required_unless_present = "input_pos",
+            conflicts_with = "input_pos"
+        )]
+        input: Option<String>,
+
+        /// Texture (.tex) to decode (positional alternative to -i/--input)
+        #[arg(value_name = "INPUT", index = 1, required_unless_present = "input")]
+        input_pos: Option<String>,
 
         /// Output file path
         /// The output directory will be created if it doesn't exist
         /// The output format will be determined by the file extension
-        #[arg(short, long)]
-        output: String,
+        /// Defaults to writing next to INPUT with a `.png` extension.
+        #[arg(short, long, value_name = "OUTPUT")]
+        output: Option<String>,
+
+        /// Mipmap to decode
+        #[arg(short, long, default_value = "0")]
+        mipmap: u32,
     },
 }
 
@@ -71,9 +98,8 @@ fn main() -> eyre::Result<()> {
 
     // Drag-and-drop auto mode (Windows): if invoked with a single file path argument,
     // auto-route to decode/encode based on extension and derive the output by changing the extension.
-    if let Some(result) = try_handle_auto_mode()? {
-        result?;
-        return Ok(());
+    if let ControlFlow::Break(result) = try_handle_auto_mode() {
+        return result;
     }
 
     let styles = Styles::styled()
@@ -94,42 +120,90 @@ fn main() -> eyre::Result<()> {
         Commands::Info { input } => info(InfoCommandOptions { input }),
         Commands::Encode {
             input,
+            input_pos,
             output,
             format,
             generate_mipmaps,
             mipmap_filter,
-        } => encode(EncodeCommandOptions {
+        } => {
+            let input = resolve_input(input, input_pos)?;
+            let output = resolve_output(output, &input, "tex")?;
+            encode(EncodeCommandOptions {
+                input,
+                output,
+                format,
+                generate_mipmaps,
+                mipmap_filter,
+            })?
+        }
+        Commands::Decode {
             input,
+            input_pos,
             output,
-            format,
-            generate_mipmaps,
-            mipmap_filter,
-        })?,
-        Commands::Decode { input, output } => decode(DecodeCommandOptions { input, output })?,
+            mipmap,
+        } => {
+            let input = resolve_input(input, input_pos)?;
+            let output = resolve_output(output, &input, "png")?;
+            decode(DecodeCommandOptions {
+                input,
+                output,
+                mipmap,
+            })?
+        }
     }
 
     Ok(())
 }
 
+fn resolve_input(flag: Option<String>, positional: Option<String>) -> eyre::Result<String> {
+    match (flag, positional) {
+        (Some(v), None) | (None, Some(v)) => Ok(v),
+        (None, None) => Err(eyre::eyre!(
+            "missing input; pass -i/--input or provide INPUT positionally"
+        )),
+        (Some(_), Some(_)) => Err(eyre::eyre!(
+            "provide input either via -i/--input or positionally, not both"
+        )),
+    }
+}
+
+fn resolve_output(output: Option<String>, input: &str, default_ext: &str) -> eyre::Result<String> {
+    if let Some(o) = output {
+        return Ok(o);
+    }
+
+    let input_path = Path::new(input);
+    let parent = input_path.parent().unwrap_or_else(|| Path::new("."));
+
+    let stem = input_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| eyre::eyre!("failed to derive output path from INPUT"))?;
+
+    let mut out_path = parent.join(stem);
+    out_path.set_extension(default_ext);
+    Ok(out_path.to_string_lossy().to_string())
+}
+
 /// Attempts to handle a single positional argument invocation (drag-and-drop style).
-/// Returns Ok(Some(result)) if handled, Ok(None) to continue with normal clap parsing.
-fn try_handle_auto_mode() -> eyre::Result<Option<eyre::Result<()>>> {
+/// Returns `Break(result)` if handled, `Continue(())` to proceed with normal clap parsing.
+fn try_handle_auto_mode() -> ControlFlow<eyre::Result<()>> {
     let mut args = std::env::args_os();
     let _exe = args.next();
     let first = match args.next() {
         Some(a) => a,
-        None => return Ok(None),
+        None => return ControlFlow::Continue(()),
     };
     // Ensure exactly one argument
     if args.next().is_some() {
-        return Ok(None);
+        return ControlFlow::Continue(());
     }
 
     // If the single argument looks like a flag (e.g. --help, -h, /?),
     // defer to the normal CLI parser so help/version work as expected.
     let first_str_lossy = first.to_string_lossy();
     if first_str_lossy.starts_with('-') || first_str_lossy.starts_with('/') {
-        return Ok(None);
+        return ControlFlow::Continue(());
     }
 
     let input_os = first;
@@ -138,7 +212,7 @@ fn try_handle_auto_mode() -> eyre::Result<Option<eyre::Result<()>>> {
     // Only trigger auto-mode if the argument resolves to an existing path.
     // This prevents accidental activation on random single tokens.
     if !input_path.exists() {
-        return Ok(None);
+        return ControlFlow::Continue(());
     }
 
     let input_str = input_path.to_string_lossy().to_string();
@@ -148,10 +222,8 @@ fn try_handle_auto_mode() -> eyre::Result<Option<eyre::Result<()>>> {
         .and_then(|s| s.to_str())
         .map(|s| s.to_lowercase());
 
-    match ext.as_deref() {
-        Some("dds") => Ok(Some(Err(eyre::eyre!(
-            ".dds files are not supported for decoding"
-        )))),
+    let result = match ext.as_deref() {
+        Some("dds") => Err(eyre::eyre!(".dds files are not supported for decoding")),
         Some("tex") => {
             let mut out_path = input_path.to_path_buf();
             out_path.set_extension("png");
@@ -161,11 +233,11 @@ fn try_handle_auto_mode() -> eyre::Result<Option<eyre::Result<()>>> {
                 output = %output,
                 "auto mode: decoding .tex to .png"
             );
-            let res = crate::commands::decode(crate::commands::DecodeCommandOptions {
+            crate::commands::decode(crate::commands::DecodeCommandOptions {
                 input: input_str,
                 output,
-            });
-            Ok(Some(res))
+                mipmap: 0,
+            })
         }
         _ => {
             let mut out_path = input_path.to_path_buf();
@@ -185,16 +257,17 @@ fn try_handle_auto_mode() -> eyre::Result<Option<eyre::Result<()>>> {
                 "auto mode: encoding image to .tex"
             );
 
-            let res = crate::commands::encode(crate::commands::EncodeCommandOptions {
+            crate::commands::encode(crate::commands::EncodeCommandOptions {
                 input: input_str,
                 output,
                 format,
                 generate_mipmaps,
                 mipmap_filter,
-            });
-            Ok(Some(res))
+            })
         }
-    }
+    };
+
+    ControlFlow::Break(result)
 }
 
 fn initialize_tracing() -> eyre::Result<()> {

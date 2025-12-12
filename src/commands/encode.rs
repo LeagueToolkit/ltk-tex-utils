@@ -23,7 +23,7 @@ pub fn encode(options: EncodeCommandOptions) -> eyre::Result<()> {
     let image = image::open(&options.input)?;
     let image = image.to_rgba8();
 
-    let tex = Tex::from_rgba_image(
+    let tex = Tex::encode_rgba_image(
         &image,
         EncodeOptions {
             format: options.format.into(),
@@ -32,7 +32,12 @@ pub fn encode(options: EncodeCommandOptions) -> eyre::Result<()> {
         },
     )?;
 
-    fs::create_dir_all(Path::new(&options.output).parent().unwrap())?;
+    let output_path = Path::new(&options.output);
+    if let Some(parent) = output_path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent)?;
+    }
     let file = File::create(&options.output)?;
     let mut writer = BufWriter::new(file);
 
