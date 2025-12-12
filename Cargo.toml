@@ -1,20 +1,3 @@
-[package]
-name = "ltk-tex-utils"
-version = "0.1.4"
-edition = "2024"
-build = "build.rs"
-
-[dependencies]
-clap = { version = "4.5.20", features = ["derive"] }
-eyre = "0.6.12"
-color-eyre = "0.6"
-colored = "2"
-league-toolkit = { version = "0.2.11", features = ["texture", "file"] }
-ltk_texture = { version = "*", features = ["intel-tex"] }
-tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.2", features = ["local-time"] }
-
-image = { version = "0.25.2" }
-
 [workspace]
 members = ["crates/*"]
+resolver = "3"

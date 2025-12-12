@@ -139,15 +139,15 @@ The tool emits human-friendly logs. Informational, debug, and trace logs go to s
 Run from source:
 
 ```bash
-cargo run -- <subcommand> [options]
+cargo run -p ltk-tex-utils -- <subcommand> [options]
 ```
 
 Examples:
 
 ```bash
-cargo run -- info -i samples/texture.tex
-cargo run -- encode samples/albedo.png -f bc3
-cargo run -- decode samples/texture.tex
+cargo run -p ltk-tex-utils -- info -i samples/texture.tex
+cargo run -p ltk-tex-utils -- encode samples/albedo.png -f bc3
+cargo run -p ltk-tex-utils -- decode samples/texture.tex
 ```
 
 ### Acknowledgements
