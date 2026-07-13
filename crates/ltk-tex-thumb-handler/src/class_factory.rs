@@ -9,8 +9,13 @@ use windows::Win32::Foundation::*;
 use windows::Win32::System::Com::*;
 use windows::core::*;
 
+use crate::preview_handler::CTexPreviewHandler_CreateInstance;
+use crate::property_handler::CTexPropertyHandler_CreateInstance;
 use crate::thumbnail_provider::CTexThumbProvider_CreateInstance;
-use crate::{CLSID_TEX_THUMB_HANDLER, DllAddRef, DllRelease};
+use crate::{
+    CLSID_TEX_PREVIEW_HANDLER, CLSID_TEX_PROPERTY_HANDLER, CLSID_TEX_THUMB_HANDLER, DllAddRef,
+    DllRelease,
+};
 
 pub type PfnCreateInstance = fn(*const GUID, *mut *mut c_void) -> HRESULT;
 
@@ -20,10 +25,20 @@ pub struct ClassObjectInit {
 }
 
 /// Registry of class objects supported by this DLL
-pub const C_RGCLASSOBJECTINIT: &[ClassObjectInit] = &[ClassObjectInit {
-    pClsid: &CLSID_TEX_THUMB_HANDLER,
-    pfnCreate: CTexThumbProvider_CreateInstance,
-}];
+pub const C_RGCLASSOBJECTINIT: &[ClassObjectInit] = &[
+    ClassObjectInit {
+        pClsid: &CLSID_TEX_THUMB_HANDLER,
+        pfnCreate: CTexThumbProvider_CreateInstance,
+    },
+    ClassObjectInit {
+        pClsid: &CLSID_TEX_PREVIEW_HANDLER,
+        pfnCreate: CTexPreviewHandler_CreateInstance,
+    },
+    ClassObjectInit {
+        pClsid: &CLSID_TEX_PROPERTY_HANDLER,
+        pfnCreate: CTexPropertyHandler_CreateInstance,
+    },
+];
 
 #[implement(IClassFactory)]
 pub struct CClassFactory {

@@ -15,6 +15,8 @@ use windows::core::*;
 mod class_factory;
 mod debug;
 mod image_processing;
+mod preview_handler;
+mod property_handler;
 mod registration;
 mod thumbnail_provider;
 
@@ -29,6 +31,16 @@ use registration::{register_server, unregister_server};
 /// CLSID for the TEX Thumbnail Handler
 /// {2f7e3e47-3b6b-4d59-9d42-4f4b0a5ba1b9}
 pub const CLSID_TEX_THUMB_HANDLER: GUID = GUID::from_u128(0x2f7e3e47_3b6b_4d59_9d42_4f4b0a5ba1b9);
+
+/// CLSID for the TEX Preview Handler (Explorer preview pane, Alt+P)
+/// {b1e4f2a8-7c3d-4e6f-9a1b-5d8c2f7e0a34}
+pub const CLSID_TEX_PREVIEW_HANDLER: GUID =
+    GUID::from_u128(0xb1e4f2a8_7c3d_4e6f_9a1b_5d8c2f7e0a34);
+
+/// CLSID for the TEX Property Handler (Details pane, columns, tooltips, search)
+/// {c2f5a3b9-8d4e-4a6f-b1c7-3e9d0f2a5b48}
+pub const CLSID_TEX_PROPERTY_HANDLER: GUID =
+    GUID::from_u128(0xc2f5a3b9_8d4e_4a6f_b1c7_3e9d0f2a5b48);
 
 /// Module reference count for DLL lifetime management
 static G_CREF_MODULE: AtomicI32 = AtomicI32::new(0);
