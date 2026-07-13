@@ -15,7 +15,10 @@ use windows::Win32::UI::Shell::{
 };
 use windows::core::*;
 
-use crate::image_processing::*;
+use crate::image_processing::decode_tex_file;
+use crate::utils::{
+    create_premul_hbitmap, read_stream_to_bytes, scale_image, to_premultiplied_bgra,
+};
 
 #[implement(IInitializeWithStream, IThumbnailProvider)]
 pub struct CTexThumbProvider {

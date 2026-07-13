@@ -17,8 +17,10 @@ mod debug;
 mod image_processing;
 mod preview_handler;
 mod property_handler;
+mod raster;
 mod registration;
 mod thumbnail_provider;
+mod utils;
 
 // Re-export for internal use
 use class_factory::{C_RGCLASSOBJECTINIT, CClassFactory};
@@ -34,8 +36,7 @@ pub const CLSID_TEX_THUMB_HANDLER: GUID = GUID::from_u128(0x2f7e3e47_3b6b_4d59_9
 
 /// CLSID for the TEX Preview Handler (Explorer preview pane, Alt+P)
 /// {b1e4f2a8-7c3d-4e6f-9a1b-5d8c2f7e0a34}
-pub const CLSID_TEX_PREVIEW_HANDLER: GUID =
-    GUID::from_u128(0xb1e4f2a8_7c3d_4e6f_9a1b_5d8c2f7e0a34);
+pub const CLSID_TEX_PREVIEW_HANDLER: GUID = GUID::from_u128(0xb1e4f2a8_7c3d_4e6f_9a1b_5d8c2f7e0a34);
 
 /// CLSID for the TEX Property Handler (Details pane, columns, tooltips, search)
 /// {c2f5a3b9-8d4e-4a6f-b1c7-3e9d0f2a5b48}

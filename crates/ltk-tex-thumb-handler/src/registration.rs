@@ -92,7 +92,10 @@ fn this_dll_path() -> Option<String> {
 }
 
 fn wide(path: &std::path::Path) -> Vec<u16> {
-    path.as_os_str().encode_wide().chain(std::iter::once(0)).collect()
+    path.as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
 }
 
 /// Write the embedded schema next to the DLL and register it (best effort).

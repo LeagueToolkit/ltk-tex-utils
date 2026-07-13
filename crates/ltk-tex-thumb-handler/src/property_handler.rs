@@ -17,7 +17,8 @@ use windows::Win32::UI::Shell::PropertiesSystem::{
 };
 use windows::core::*;
 
-use crate::image_processing::{TexMeta, decode_tex_with_meta, read_stream_to_bytes};
+use crate::image_processing::{TexMeta, decode_tex_with_meta};
+use crate::utils::read_stream_to_bytes;
 
 // System.Image.* property set (built-in, labelled by the shell automatically).
 const FMTID_IMAGE: GUID = GUID::from_u128(0x6444048F_4C8B_11D1_8B70_080036B11A03);

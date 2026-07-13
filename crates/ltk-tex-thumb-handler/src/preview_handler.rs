@@ -25,10 +25,9 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::*;
 
 use crate::debug::debug_log;
-use crate::image_processing::{
-    TexMeta, create_premul_hbitmap, decode_tex_with_meta, read_stream_to_bytes,
-    to_premultiplied_bgra,
-};
+use crate::image_processing::{TexMeta, decode_tex_with_meta};
+use crate::raster::{draw_checker, draw_overlay, resize_rgba};
+use crate::utils::{create_premul_hbitmap, read_stream_to_bytes, to_premultiplied_bgra};
 
 const WNDCLASS_NAME: PCWSTR = w!("LtkTexPreviewWnd");
 static REGISTER_CLASS: Once = Once::new();
@@ -386,10 +385,10 @@ fn paint(hwnd: HWND, hdc: HDC, pd: &PaintData) {
             let src = CreateCompatibleDC(hdc);
             let old_src = SelectObject(src, hbmp);
             let bf = BLENDFUNCTION {
-                BlendOp: 0,             // AC_SRC_OVER
+                BlendOp: 0, // AC_SRC_OVER
                 BlendFlags: 0,
                 SourceConstantAlpha: 255,
-                AlphaFormat: 1,         // AC_SRC_ALPHA (premultiplied)
+                AlphaFormat: 1, // AC_SRC_ALPHA (premultiplied)
             };
             let _ = AlphaBlend(mem, dx, dy, dw, dh, src, 0, 0, dw, dh, bf);
             SelectObject(src, old_src);
@@ -397,7 +396,7 @@ fn paint(hwnd: HWND, hdc: HDC, pd: &PaintData) {
             let _ = DeleteObject(hbmp);
         }
 
-        draw_overlay(mem, ch, pd);
+        draw_overlay(mem, ch, &pd.lines, PANE_TEXT);
 
         let _ = BitBlt(hdc, 0, 0, cw, ch, mem, 0, 0, SRCCOPY);
 
@@ -407,86 +406,7 @@ fn paint(hwnd: HWND, hdc: HDC, pd: &PaintData) {
     }
 }
 
-/// Resample full-res RGBA to the display size. CatmullRom keeps upscaled
-/// textures crisp; Triangle avoids ringing when shrinking.
-fn resize_rgba(rgba: &[u8], src_w: i32, src_h: i32, dst_w: i32, dst_h: i32) -> Vec<u8> {
-    if (dst_w, dst_h) == (src_w, src_h) {
-        return rgba.to_vec();
-    }
-    match image::RgbaImage::from_raw(src_w as u32, src_h as u32, rgba.to_vec()) {
-        Some(img) => {
-            let filter = if dst_w >= src_w {
-                image::imageops::FilterType::CatmullRom
-            } else {
-                image::imageops::FilterType::Triangle
-            };
-            image::imageops::resize(&img, dst_w as u32, dst_h as u32, filter).into_raw()
-        }
-        None => rgba.to_vec(),
-    }
-}
-
-/// Alpha checkerboard so transparent regions read clearly.
-fn draw_checker(hdc: HDC, x: i32, y: i32, w: i32, h: i32) {
-    unsafe {
-        const CELL: i32 = 8;
-        let light = CreateSolidBrush(COLORREF(0x009E_9E9E));
-        let dark = CreateSolidBrush(COLORREF(0x006E_6E6E));
-        let mut yy = 0;
-        while yy < h {
-            let mut xx = 0;
-            while xx < w {
-                let cw = CELL.min(w - xx);
-                let cyh = CELL.min(h - yy);
-                let brush = if ((xx / CELL) + (yy / CELL)) % 2 == 0 {
-                    light
-                } else {
-                    dark
-                };
-                FillRect(
-                    hdc,
-                    &RECT {
-                        left: x + xx,
-                        top: y + yy,
-                        right: x + xx + cw,
-                        bottom: y + yy + cyh,
-                    },
-                    brush,
-                );
-                xx += CELL;
-            }
-            yy += CELL;
-        }
-        let _ = DeleteObject(light);
-        let _ = DeleteObject(dark);
-    }
-}
-
-/// Metadata lines in the bottom-left, with a 1px shadow for legibility.
-fn draw_overlay(hdc: HDC, ch: i32, pd: &PaintData) {
-    if pd.lines.is_empty() {
-        return;
-    }
-    unsafe {
-        let font = GetStockObject(DEFAULT_GUI_FONT);
-        let old_font = SelectObject(hdc, font);
-        SetBkMode(hdc, TRANSPARENT);
-
-        const PAD: i32 = 8;
-        const LINE_H: i32 = 18;
-        let mut y = ch - PAD - LINE_H * pd.lines.len() as i32;
-        for line in &pd.lines {
-            let wide: Vec<u16> = line.encode_utf16().collect();
-            SetTextColor(hdc, COLORREF(0x0000_0000));
-            let _ = TextOutW(hdc, PAD + 1, y + 1, &wide);
-            SetTextColor(hdc, PANE_TEXT);
-            let _ = TextOutW(hdc, PAD, y, &wide);
-            y += LINE_H;
-        }
-
-        SelectObject(hdc, old_font);
-    }
-}
+// Rasterization leaf helpers (resample, checkerboard, overlay) live in `raster`.
 
 pub fn CTexPreviewHandler_CreateInstance(riid: *const GUID, ppv: *mut *mut c_void) -> HRESULT {
     let handler = CTexPreviewHandler::new();
