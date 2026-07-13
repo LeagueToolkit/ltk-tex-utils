@@ -2,7 +2,7 @@ use clap::{
     ColorChoice, CommandFactory, FromArgMatches, Parser, Subcommand,
     builder::{Styles, styling::AnsiColor},
 };
-use league_toolkit::texture::tex::MipmapFilter;
+use ltk_texture::tex::MipmapFilter;
 use std::ops::ControlFlow;
 use std::path::Path;
 use tracing::info;

@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-use league_toolkit::texture::Tex;
+use ltk_texture::Tex;
 
 pub struct DecodeCommandOptions {
     pub input: String,

@@ -1,5 +1,5 @@
 use colored::Colorize;
-use league_toolkit::texture::tex::Tex;
+use ltk_texture::tex::Tex;
 use std::fs::File;
 use std::io::BufReader;
 
@@ -55,6 +55,6 @@ pub fn info(options: InfoCommandOptions) {
     crate::println_pad!(
         "{} {}",
         "resource".bold().cyan(),
-        format!(": {}", tex.resource_type).green()
+        format!(": {:?}", tex.resource_type).green()
     );
 }

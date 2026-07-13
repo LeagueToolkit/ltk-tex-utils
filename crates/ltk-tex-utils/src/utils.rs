@@ -1,4 +1,4 @@
-use league_toolkit::texture::tex::{Format, MipmapFilter};
+use ltk_texture::tex::{Format, MipmapFilter};
 
 #[macro_export]
 macro_rules! println_pad {
@@ -14,6 +14,7 @@ macro_rules! println_pad {
 pub enum ValidFormat {
     Bc1,
     Bc3,
+    Bc7,
     Bgra8,
 }
 
@@ -22,6 +23,7 @@ impl From<ValidFormat> for Format {
         match val {
             ValidFormat::Bc1 => Format::Bc1,
             ValidFormat::Bc3 => Format::Bc3,
+            ValidFormat::Bc7 => Format::Bc7,
             ValidFormat::Bgra8 => Format::Bgra8,
         }
     }
