@@ -6,7 +6,7 @@ publish = false
 
 [lib]
 name = "ltk_tex_thumb_handler"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [package.metadata]
 description = "Windows Explorer thumbnail provider COM DLL for LeagueToolkit .tex previews"
@@ -22,9 +22,12 @@ windows = { version = "0.58.0", features = [
     "Win32_System_LibraryLoader",
     "Win32_UI_Shell",
     "Win32_UI_Shell_PropertiesSystem",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
     "Win32_Graphics_Gdi",
 ] }
 windows-core = "0.58.0"
 winreg = { version = "0.52", optional = false }
 chrono = "0.4"
+image = { version = "0.25", default-features = false }
 ltk_texture = { version = "0.6.0" }

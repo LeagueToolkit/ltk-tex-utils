@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<schema xmlns="http://schemas.microsoft.com/windows/2006/propertydescription" schemaVersion="1.0">
+  <propertyDescriptionList publisher="LeagueToolkit" product="LtkTexUtils">
+    <propertyDescription name="LeagueToolkit.Tex.Format"
+                         formatID="{8F3E9A21-4B7C-4D2E-9C1A-6E5D4F3A2B10}" propID="2">
+      <description>League .tex pixel format.</description>
+      <typeInfo type="String" isViewable="true" isQueryable="true" multipleValues="false"/>
+      <labelInfo label="TEX Format"/>
+    </propertyDescription>
+    <propertyDescription name="LeagueToolkit.Tex.MipLevels"
+                         formatID="{8F3E9A21-4B7C-4D2E-9C1A-6E5D4F3A2B10}" propID="3">
+      <description>Number of mip levels stored in the texture.</description>
+      <typeInfo type="UInt32" isViewable="true" isQueryable="true" multipleValues="false"/>
+      <labelInfo label="Mip levels"/>
+    </propertyDescription>
+    <propertyDescription name="LeagueToolkit.Tex.HasAlpha"
+                         formatID="{8F3E9A21-4B7C-4D2E-9C1A-6E5D4F3A2B10}" propID="4">
+      <description>Whether the texture contains alpha (transparency) data.</description>
+      <typeInfo type="Boolean" isViewable="true" isQueryable="true" multipleValues="false"/>
+      <labelInfo label="Has alpha"/>
+    </propertyDescription>
+  </propertyDescriptionList>
+</schema>

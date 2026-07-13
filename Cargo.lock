@@ -829,6 +829,7 @@ name = "ltk-tex-thumb-handler"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "image",
  "ltk_texture",
  "windows",
  "windows-core",

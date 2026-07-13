@@ -11,11 +11,14 @@ use windows::Win32::UI::Shell::PropertiesSystem::{
     IInitializeWithStream, IInitializeWithStream_Impl,
 };
 use windows::Win32::UI::Shell::{
-    IThumbnailProvider, IThumbnailProvider_Impl, WTS_ALPHATYPE, WTSAT_RGB,
+    IThumbnailProvider, IThumbnailProvider_Impl, WTS_ALPHATYPE, WTSAT_ARGB,
 };
 use windows::core::*;
 
-use crate::image_processing::*;
+use crate::image_processing::decode_tex_file;
+use crate::utils::{
+    create_premul_hbitmap, read_stream_to_bytes, scale_image, to_premultiplied_bgra,
+};
 
 #[implement(IInitializeWithStream, IThumbnailProvider)]
 pub struct CTexThumbProvider {
@@ -70,11 +73,13 @@ impl IThumbnailProvider_Impl for CTexThumbProvider_Impl {
         let bytes = unsafe { read_stream_to_bytes(stream)? };
         let (rgba, width, height) = decode_tex_file(&bytes)?;
         let (scaled_rgba, scaled_w, scaled_h) = scale_image(&rgba, width, height, cx);
-        let hbmp = unsafe { create_hbitmap_from_rgba(&scaled_rgba, scaled_w, scaled_h)? };
+
+        let premul = to_premultiplied_bgra(&scaled_rgba);
+        let hbmp = unsafe { create_premul_hbitmap(&premul, scaled_w, scaled_h)? };
 
         unsafe {
             *phbmp = hbmp;
-            *pdwAlpha = WTSAT_RGB; // Not using premultiplied alpha
+            *pdwAlpha = WTSAT_ARGB;
         }
 
         Ok(())
