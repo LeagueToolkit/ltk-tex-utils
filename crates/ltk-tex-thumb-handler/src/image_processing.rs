@@ -2,7 +2,7 @@
 // IMAGE PROCESSING AND BITMAP OPERATIONS
 // =============================================================================
 
-use league_toolkit::texture::Tex;
+use ltk_texture::Tex;
 use std::ffi::c_void;
 use std::io::Cursor;
 use std::{mem, ptr};
