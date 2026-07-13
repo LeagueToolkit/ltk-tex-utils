@@ -136,51 +136,6 @@ pub fn scale_image(src: &[u8], src_w: u32, src_h: u32, cx: u32) -> (Vec<u8>, u32
     (out, dst_w, dst_h)
 }
 
-/// Convert RGBA to premultiplied BGRA HBITMAP (following Microsoft's ConvertBitmapSourceTo32BPPHBITMAP pattern)
-pub unsafe fn create_hbitmap_from_rgba(rgba: &[u8], width: u32, height: u32) -> Result<HBITMAP> {
-    let mut bi: BITMAPV5HEADER = unsafe { mem::zeroed() };
-    bi.bV5Size = mem::size_of::<BITMAPV5HEADER>() as u32;
-    bi.bV5Width = width as i32;
-    bi.bV5Height = -(height as i32); // Top-down DIB
-    bi.bV5Planes = 1;
-    bi.bV5BitCount = 32;
-    bi.bV5Compression = BI_RGB; // Use standard RGB format (which is actually BGRA in memory)
-
-    let mut bits: *mut c_void = ptr::null_mut();
-    let hbmp = unsafe {
-        CreateDIBSection(
-            HDC(std::ptr::null_mut()),
-            &bi as *const _ as *const BITMAPINFO,
-            DIB_RGB_COLORS,
-            &mut bits,
-            None,
-            0,
-        )?
-    };
-
-    if hbmp.is_invalid() || bits.is_null() {
-        return Err(Error::from(E_FAIL));
-    }
-
-    let dst =
-        unsafe { std::slice::from_raw_parts_mut(bits as *mut u8, (width * height * 4) as usize) };
-
-    for i in 0..(width * height) as usize {
-        let r = rgba[i * 4];
-        let g = rgba[i * 4 + 1];
-        let b = rgba[i * 4 + 2];
-        let a = rgba[i * 4 + 3];
-
-        // Write as BGRA for Windows (just swap R and B, no premultiplication)
-        dst[i * 4] = b;
-        dst[i * 4 + 1] = g;
-        dst[i * 4 + 2] = r;
-        dst[i * 4 + 3] = a;
-    }
-
-    Ok(hbmp)
-}
-
 /// Create a top-down 32bpp DIB section HBITMAP from already-premultiplied BGRA
 /// bytes, for use as an `AlphaBlend` source in the preview handler.
 pub unsafe fn create_premul_hbitmap(bgra_premul: &[u8], width: u32, height: u32) -> Result<HBITMAP> {
