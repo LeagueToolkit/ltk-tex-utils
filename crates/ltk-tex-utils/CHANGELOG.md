@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1](https://github.com/LeagueToolkit/ltk-tex-utils/compare/v0.2.0...v0.2.1) - 2026-07-13
+
+### Added
+
+- new format encoding and better BCn quality
+
 ## [0.2.0](https://github.com/LeagueToolkit/ltk-tex-utils/releases/tag/ltk-tex-utils-v0.2.0) - 2025-12-12
 
 ### Other
