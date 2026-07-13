@@ -53,9 +53,16 @@ pub enum Commands {
         #[arg(short, long, value_name = "OUTPUT")]
         output: Option<String>,
 
-        /// Texture format to encode to (e.g., BC1, BC3, BGRA8)
+        /// Texture format to encode to
+        /// (bc1, bc3, bc7, bgra8, rgba16f, rgba32f)
         #[arg(short, long, value_parser = parse_format, default_value = "bc3")]
         format: ValidFormat,
+
+        /// Weigh color by alpha during the BC1/BC3 cluster fit.
+        /// Improves perceived quality for alpha-blended textures at the cost of
+        /// color accuracy in transparent regions. Ignored for other formats.
+        #[arg(long, default_value = "false")]
+        weigh_color_by_alpha: bool,
 
         /// Whether to generate mipmaps
         #[arg(short = 'm', long, default_value = "true")]
@@ -123,6 +130,7 @@ fn main() -> eyre::Result<()> {
             input_pos,
             output,
             format,
+            weigh_color_by_alpha,
             generate_mipmaps,
             mipmap_filter,
         } => {
@@ -132,6 +140,7 @@ fn main() -> eyre::Result<()> {
                 input,
                 output,
                 format,
+                weigh_color_by_alpha,
                 generate_mipmaps,
                 mipmap_filter,
             })?
@@ -245,6 +254,7 @@ fn try_handle_auto_mode() -> ControlFlow<eyre::Result<()>> {
             let output = out_path.to_string_lossy().to_string();
 
             let format = ValidFormat::Bc3;
+            let weigh_color_by_alpha = false;
             let generate_mipmaps = true;
             let mipmap_filter = MipmapFilter::Lanczos3;
 
@@ -261,6 +271,7 @@ fn try_handle_auto_mode() -> ControlFlow<eyre::Result<()>> {
                 input: input_str,
                 output,
                 format,
+                weigh_color_by_alpha,
                 generate_mipmaps,
                 mipmap_filter,
             })

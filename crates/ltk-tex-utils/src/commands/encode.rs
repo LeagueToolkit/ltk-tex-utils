@@ -6,7 +6,7 @@ use std::{
 
 use ltk_texture::{
     Tex,
-    tex::{EncodeFormat, EncodeOptions, Format, MipmapFilter},
+    tex::{EncodeOptions, MipmapFilter},
 };
 
 use crate::utils::ValidFormat;
@@ -15,6 +15,7 @@ pub struct EncodeCommandOptions {
     pub input: String,
     pub output: String,
     pub format: ValidFormat,
+    pub weigh_color_by_alpha: bool,
     pub generate_mipmaps: bool,
     pub mipmap_filter: MipmapFilter,
 }
@@ -26,7 +27,9 @@ pub fn encode(options: EncodeCommandOptions) -> eyre::Result<()> {
     let tex = Tex::encode_rgba_image(
         &image,
         EncodeOptions {
-            format: EncodeFormat::try_from(Format::from(options.format))?,
+            format: options
+                .format
+                .to_encode_format(options.weigh_color_by_alpha),
             generate_mipmaps: options.generate_mipmaps,
             mipmap_filter: options.mipmap_filter,
         },
