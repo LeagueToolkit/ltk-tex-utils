@@ -1,11 +1,16 @@
 [workspace]
 publish = false
 git_tag_enable = true
+git_release_enable = true
+release_always = false
 
 [[package]]
 name = "ltk-tex-thumb-handler"
 publish = false
+# Shipped as an asset of the ltk-tex-utils release, not released on its own.
+release = false
 
 [[package]]
 name = "ltk-tex-utils"
 publish = false
+release = true

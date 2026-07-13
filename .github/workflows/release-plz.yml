@@ -1,9 +1,10 @@
-name: Release-plz PR
+name: Release-plz
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions: {}
 
@@ -23,9 +24,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: true
           persist-credentials: false
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+      - name: Fetch tags
+        run: git fetch --tags --force --prune --unshallow || true
       - name: Run release-plz
         uses: release-plz/action@v0.5
         with:
@@ -37,121 +41,38 @@ jobs:
     name: Release-plz Release
     runs-on: ubuntu-latest
     if: ${{ github.repository_owner == 'LeagueToolkit' }}
+    needs: release-plz-pr
     permissions:
       contents: write
-      pull-requests: read
     concurrency:
       group: release-plz-release-${{ github.ref }}
       cancel-in-progress: false
+    outputs:
+      releases_created: ${{ steps.release.outputs.releases_created }}
+      releases: ${{ steps.release.outputs.releases }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: true
           persist-credentials: false
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-      - name: Run release-plz (tag)
+      - name: Fetch tags
+        run: git fetch --tags --force --prune --unshallow || true
+      - name: Run release-plz release
+        id: release
         uses: release-plz/action@v0.5
         with:
           command: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  create-release:
-    name: Create Release
-    needs: release-plz-release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    outputs:
-      upload_url: ${{ steps.get_or_create_release.outputs.result }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Compute tag from Cargo.toml
-        id: tag
-        shell: bash
-        run: |
-          set -euo pipefail
-          MANIFEST="crates/ltk-tex-utils/Cargo.toml"
-          VERSION=$(awk -F '"' '/^version[[:space:]]*=/ {print $2; exit}' "$MANIFEST")
-          if [[ -z "${VERSION:-}" ]]; then
-            echo "Failed to read version from $MANIFEST" >&2
-            exit 1
-          fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=ltk-tex-utils-v$VERSION" >> $GITHUB_OUTPUT
-      - name: Extract latest changelog section for this tag
-        id: changelog
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="${{ steps.tag.outputs.tag }}"
-          FILE="crates/ltk-tex-utils/CHANGELOG.md"
-          OUT="CHANGELOG_LATEST.md"
-          if [[ ! -f "$FILE" ]]; then
-            echo "Changelog not found. Creating empty body." > "$OUT"
-          else
-            awk -v tag="$TAG" '
-              BEGIN {found=0}
-              /^##[[:space:]]/ {
-                if (found) { exit }
-              }
-              $0 ~ "^##[[:space:]].*" tag "$" || $0 ~ "^##[[:space:]].*\\[" tag "\\]" {
-                found=1
-                next
-              }
-              found { print }
-            ' "$FILE" > "$OUT" || true
-            if ! grep -q '[^[:space:]]' "$OUT"; then
-              awk '
-                BEGIN {start=0}
-                /^##[[:space:]]/ { if (start) { exit } else { start=1; next } }
-                start { print }
-              ' "$FILE" > "$OUT" || true
-            fi
-            if ! grep -q '[^[:space:]]' "$OUT"; then
-              echo "No changelog entries found for $TAG." > "$OUT"
-            fi
-          fi
-          echo "Changelog extracted to $OUT"
-      - name: Get or Create Release
-        id: get_or_create_release
-        uses: actions/github-script@v7
-        env:
-          TAG: ${{ steps.tag.outputs.tag }}
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          result-encoding: string
-          script: |
-            const fs = require('fs');
-            const { owner, repo } = context.repo;
-            const tag = process.env.TAG;
-            let release;
-            try {
-              release = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
-            } catch (e) {
-              if (e.status !== 404) throw e;
-            }
-            if (!release) {
-              const body = fs.existsSync('CHANGELOG_LATEST.md') ? fs.readFileSync('CHANGELOG_LATEST.md', 'utf8') : '';
-              release = await github.rest.repos.createRelease({
-                owner,
-                repo,
-                tag_name: tag,
-                name: `Release ${tag}`,
-                body,
-                draft: false,
-                prerelease: false,
-              });
-            }
-            return release.data.upload_url;
-
   build-and-upload:
     name: Build and Upload
-    needs: create-release
+    needs: release-plz-release
+    if: needs.release-plz-release.outputs.releases_created == 'true'
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -177,27 +98,39 @@ jobs:
         with:
           targets: ${{ matrix.target }}
           components: rustfmt,clippy
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Extract release tag
+        id: release_info
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASES='${{ needs.release-plz-release.outputs.releases }}'
+          TAG=$(echo "$RELEASES" | jq -r '.[] | select(.package_name=="ltk-tex-utils") | .tag')
+          if [[ -z "$TAG" || "$TAG" == "null" ]]; then
+            echo "No ltk-tex-utils release found in releases output" >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
       - name: Build Release Binary
         run: cargo build --verbose --release --target ${{ matrix.target }}
       - name: Build Windows Thumbnail Handler DLL
         if: matrix.os == 'windows-latest'
         run: cargo build --verbose --release --target ${{ matrix.target }} -p ltk-tex-thumb-handler
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
+      - name: Prepare assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "target/${{ matrix.target }}/release/${{ matrix.artifact_name }}" "${{ matrix.asset_name }}"
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            cp "target/${{ matrix.target }}/release/ltk_tex_thumb_handler.dll" "ltk-tex-thumb-handler.dll"
+          fi
+      - name: Upload assets to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_info.outputs.tag }}
+          files: |
+            ${{ matrix.asset_name }}
+            ltk-tex-thumb-handler.dll
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
-          asset_name: ${{ matrix.asset_name }}
-          asset_content_type: application/octet-stream
-      - name: Upload Windows Thumbnail Handler DLL
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./target/${{ matrix.target }}/release/ltk_tex_thumb_handler.dll
-          asset_name: ltk-tex-thumb-handler.dll
-          asset_content_type: application/octet-stream
