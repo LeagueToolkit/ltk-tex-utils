@@ -4,9 +4,9 @@ use std::{
     path::Path,
 };
 
-use league_toolkit::texture::{
+use ltk_texture::{
     Tex,
-    tex::{EncodeOptions, MipmapFilter},
+    tex::{EncodeFormat, EncodeOptions, Format, MipmapFilter},
 };
 
 use crate::utils::ValidFormat;
@@ -26,7 +26,7 @@ pub fn encode(options: EncodeCommandOptions) -> eyre::Result<()> {
     let tex = Tex::encode_rgba_image(
         &image,
         EncodeOptions {
-            format: options.format.into(),
+            format: EncodeFormat::try_from(Format::from(options.format))?,
             generate_mipmaps: options.generate_mipmaps,
             mipmap_filter: options.mipmap_filter,
         },
