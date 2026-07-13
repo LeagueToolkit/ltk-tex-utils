@@ -1,11 +1,12 @@
 [workspace]
 publish = false
+release = false
 git_only = true
 git_tag_enable = true
 git_release_enable = true
 release_always = false
 git_tag_name = "v{{ version }}"
-git_release_name = "v{{ version }}"
+git_release_name = "LTK Tex Toolz v{{ version }}"
 
 [[package]]
 name = "ltk-tex-thumb-handler"
