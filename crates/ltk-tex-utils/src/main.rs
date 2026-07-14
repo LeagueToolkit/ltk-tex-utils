@@ -69,7 +69,7 @@ pub enum Commands {
         generate_mipmaps: bool,
 
         /// Filter type to use for mipmap generation
-        #[arg(long, default_value = "triangle", value_parser = parse_mipmap_filter)]
+        #[arg(long, default_value = "catmullrom", value_parser = parse_mipmap_filter)]
         mipmap_filter: MipmapFilter,
     },
     Decode {
@@ -256,7 +256,7 @@ fn try_handle_auto_mode() -> ControlFlow<eyre::Result<()>> {
             let format = ValidFormat::Bc3;
             let weigh_color_by_alpha = false;
             let generate_mipmaps = true;
-            let mipmap_filter = MipmapFilter::Lanczos3;
+            let mipmap_filter = MipmapFilter::CatmullRom;
 
             info!(
                 input = %input_str,
