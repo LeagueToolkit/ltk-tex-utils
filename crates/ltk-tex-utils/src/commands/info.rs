@@ -3,6 +3,17 @@ use ltk_texture::tex::Tex;
 use std::fs::File;
 use std::io::BufReader;
 
+#[derive(clap::Args, Debug)]
+pub struct InfoArgs {
+    /// Texture to get info from
+    #[arg(short, long)]
+    pub input: String,
+}
+
+pub fn run(args: InfoArgs) {
+    info(InfoCommandOptions { input: args.input });
+}
+
 pub struct InfoCommandOptions {
     pub input: String,
 }

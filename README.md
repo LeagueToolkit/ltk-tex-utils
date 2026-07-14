@@ -5,20 +5,24 @@
   <h1>ltk-tex-utils</h1>
 </div>
 
-Small CLI utilities for working with League of Legends TEX textures, powered by `league-toolkit`.
+[![CI](https://github.com/LeagueToolkit/ltk-tex-utils/actions/workflows/ci.yml/badge.svg)](https://github.com/LeagueToolkit/ltk-tex-utils/actions/workflows/ci.yml)
+[![Release-plz](https://github.com/LeagueToolkit/ltk-tex-utils/actions/workflows/release-plz.yml/badge.svg)](https://github.com/LeagueToolkit/ltk-tex-utils/actions/workflows/release-plz.yml)
 
-### Features
-- **Inspect TEX**: print format, dimensions, mipmaps, and resource type
-- **Encode**: convert standard images (PNG/JPG/TGA/BMP/…) into `.tex`
-- **Decode**: convert `.tex` back to common image formats (driven by output file extension)
-- **Mipmaps**: optional generation with selectable filters
-- **Windows Thumbnail Provider**: show `.tex` file previews directly in Windows Explorer
+Command-line utilities for working with League of Legends `.tex` textures, powered by `league-toolkit`. Inspect, encode, and decode TEX files, with a Windows Explorer thumbnail provider for previewing them in place.
 
-### Install
+## Features
 
-On Windows (recommended):
+- **Info**: print a TEX file's format, dimensions, mipmap count, and resource type
+- **Encode**: convert standard images (PNG/DDS/JPG/TGA/BMP/…) into `.tex`, with optional mipmap generation
+- **Decode**: convert `.tex` back to common image formats, including DDS
+- **Batch conversion**: pass multiple files or whole folders to `encode`/`decode`; outputs are written next to each input
+- **Windows Explorer integration**: a thumbnail provider for `.tex` previews, right-click context-menu entries, and drag-and-drop onto the executable (see below)
 
-PowerShell (user scope):
+## Installation
+
+### Windows (Quick Install)
+
+Run this in PowerShell (installs to a user-writable directory and updates `PATH`):
 
 ```powershell
 iwr -useb https://raw.githubusercontent.com/LeagueToolkit/ltk-tex-utils/main/scripts/install-windows.ps1 | iex
@@ -26,48 +30,114 @@ iwr -useb https://raw.githubusercontent.com/LeagueToolkit/ltk-tex-utils/main/scr
 
 This downloads the latest release, installs it to `%LOCALAPPDATA%\LeagueToolkit\ltk-tex-utils`, adds a stable `bin` shim to your user `PATH`, and makes `ltk-tex-utils` available in new terminals.
 
-### Windows Explorer Thumbnail Provider
+### From Releases
 
-On Windows, you can install a thumbnail provider that shows previews of `.tex` files directly in Windows Explorer.
+Download the latest release for your platform from the [Releases page](https://github.com/LeagueToolkit/ltk-tex-utils/releases).
+
+### From Source
+
+To build from source, you'll need:
+
+- Rust (nightly toolchain)
+- Cargo (Rust's package manager)
+
+```bash
+# Clone the repository
+git clone https://github.com/LeagueToolkit/ltk-tex-utils.git
+cd ltk-tex-utils
+
+# Build the project
+cargo build --release
+
+# The binary will be available in target/release/
+```
+
+## Windows Explorer integration
+
+On Windows, ltk-tex-utils can be driven straight from Explorer - no terminal required.
+
+### Thumbnail provider
+
+Install a shell extension that renders `.tex` previews directly in Windows Explorer.
 
 <div align="center">
   <img src="assets/thumb-provider-preview.webp" alt="TEX thumbnail provider preview in Windows Explorer" width="800">
 </div>
 
-**Installation (requires administrator privileges):**
+Run PowerShell **as Administrator**, then:
 
 ```powershell
-# Run PowerShell as Administrator, then:
 iwr -useb https://raw.githubusercontent.com/LeagueToolkit/ltk-tex-utils/main/scripts/install-thumbnail-handler.ps1 | iex
 ```
 
 This will:
-- Download the `ltk-tex-thumb-handler.dll` from the latest release
+
+- Download `ltk-tex-thumb-handler.dll` from the latest release
 - Install it to `%ProgramFiles%\LeagueToolkit\ltk-tex-thumb-handler`
 - Register the COM DLL with Windows Explorer
 
-**Note:** You may need to restart Windows Explorer or your computer for thumbnails to appear.
+You may need to restart Windows Explorer (or your computer) for thumbnails to appear.
 
-**Uninstallation:**
+To uninstall, run this in an Administrator **Command Prompt** (it uses `cmd`-style `%ProgramFiles%` expansion):
 
-To uninstall the thumbnail handler, run PowerShell as Administrator and execute:
-
-```powershell
+```cmd
 regsvr32.exe /u "%ProgramFiles%\LeagueToolkit\ltk-tex-thumb-handler\ltk_tex_thumb_handler.dll"
 ```
 
-### Usage
+### Context menu (right-click)
 
-Top-level help:
+Register right-click context-menu entries for `.tex`, `.dds`, and `.png` files and for folders. The entries are per-user (`HKCU`), so no admin rights are needed:
 
-```bash
-ltk-tex-utils --help
+```powershell
+ltk-tex-utils shell install
 ```
 
-Subcommands:
+This adds a cascading **ltk-tex-utils** menu with:
 
-#### info
+- `.tex` files: **Convert to PNG** / **Convert to DDS** (top mip, written next to the file)
+- `.dds` / `.png` files: **Convert to TEX** (BC3, mipmaps on - the safest defaults)
+- Folders: **Convert all .tex to PNG** / **Convert all .tex to DDS** (recursive)
+
+Multi-selection works too - each selected file is converted next to itself.
+
+```powershell
+ltk-tex-utils shell status     # show what is registered and where it points
+ltk-tex-utils shell uninstall  # remove the entries
+```
+
+> **Note**: run `shell install` again after moving or updating the executable so the menu entries point at the new path (the quick-install script's stable `bin` shim avoids this).
+
+### Drag-and-drop
+
+Drag files (or folders) onto `ltk-tex-utils.exe` and they are converted next to the originals, no flags needed:
+
+- A `.tex` file is decoded to a sibling `.png` (top mip).
+- Any standard image (PNG/DDS/JPG/TGA/BMP/…) is encoded to a sibling `.tex` (BC3, mipmaps on).
+- A folder is searched recursively for `.tex` files, which are decoded to sibling `.png`s.
+
+## Usage
+
+```bash
+# Basic command structure
+ltk-tex-utils <COMMAND> [OPTIONS]
+
+# Show help / version
+ltk-tex-utils --help
+ltk-tex-utils <COMMAND> --help
+ltk-tex-utils --version
+```
+
+Most commands accept inputs either via `-i/--input` or positionally, so `encode input.png` and `encode -i input.png` are equivalent. `encode` and `decode` accept any number of files and folders; folders are searched recursively for convertible files, and each output is written next to its input.
+
+A global `--pause <never|on-error|always>` flag keeps the console window open before exiting - useful when the tool is launched from Explorer.
+
+### Info
+
 Prints basic metadata about a TEX file.
+
+Common flags:
+
+- `-i, --input <INPUT>`: path to the `.tex` file to inspect
 
 ```bash
 ltk-tex-utils info -i path/to/texture.tex
@@ -75,7 +145,7 @@ ltk-tex-utils info -i path/to/texture.tex
 
 Example output:
 
-```
+```text
 info: path/to/texture.tex
     format : Bc3
     dimensions : 1024x1024
@@ -83,60 +153,99 @@ info: path/to/texture.tex
     resource : Texture2D
 ```
 
-#### encode
-Encode an image into `.tex`.
+### Encode
+
+Encodes standard images into `.tex`.
+
+Common flags:
+
+- `[INPUTS]...`: input images and/or folders (folders are searched recursively for `.png`/`.dds`); `-i/--input` also works
+- `-o, --output <OUTPUT>`: output path, only valid with a single input (defaults to a sibling file with a `.tex` extension)
+- `-f, --format <FORMAT>`: texture format - `bc1`, `bc3`, `bc7`, `bgra8`, `rgba16f`, `rgba32f` (default: `bc3`)
+- `-m, --generate-mipmaps <true|false>`: generate mipmaps (default: `true`)
+- `--mipmap-filter <FILTER>`: mipmap filter - `nearest`, `triangle`, `catmullrom`, `lanczos3` (default: `catmullrom`)
+- `--weigh-color-by-alpha`: weigh color by alpha during the BC1/BC3 cluster fit - improves perceived quality for alpha-blended textures at the cost of color accuracy in transparent regions (ignored for other formats)
+
+Input images are read via the [`image`](https://crates.io/crates/image) crate, so common formats like PNG, JPEG, BMP, TIFF, and TGA are supported. `.dds` inputs are decoded through `ltk_texture` (top mip), so block-compressed DDS files work too.
+
+Basic examples:
 
 ```bash
-ltk-tex-utils encode \
-  path/to/input.png \
-  -f <bc1|bc3|bgra8> \
-  -m <true|false> \
-  --mipmap-filter <nearest|triangle|catmullrom|lanczos3>
-```
-
-Notes:
-- `-m/--generate-mipmaps` defaults to `true`. Pass `-m false` to disable mipmap generation.
-- The input image is read via the `image` crate and supports common formats like PNG, JPEG, BMP, TIFF, TGA, etc.
-- If `-o/--output` is not provided, output is written next to the input with the same name and a `.tex` extension.
-
-Examples:
-
-```bash
-# BC3 with default mipmaps (triangle)
+# BC3 with default mipmaps (catmullrom filter)
 ltk-tex-utils encode albedo.png -f bc3
 
-# Disable mipmaps
+# Positional input, explicit output path
+ltk-tex-utils encode albedo.png -o out/albedo.tex
+
+# Convert a DDS back to TEX with the default (safest) settings
+ltk-tex-utils encode texture.dds
+
+# Batch: multiple files and a whole folder in one go
+ltk-tex-utils encode a.png b.dds textures/
+
+# Disable mipmap generation
 ltk-tex-utils encode icon.png -f bgra8 -m false
 
 # BC1 with a different mipmap filter
-ltk-tex-utils encode mask.png -f bc1 --mipmap-filter lanczos3
+ltk-tex-utils encode mask.png -f bc1 --mipmap-filter triangle
+
+# Alpha-weighted BC3 for an alpha-blended texture
+ltk-tex-utils encode decal.png -f bc3 --weigh-color-by-alpha
 ```
 
-#### decode
-Decode a `.tex` file into a standard image.
+### Decode
+
+Decodes `.tex` files into standard images. The output image format is inferred from the output file extension (or from `-f/--format` when no output is given).
+
+Common flags:
+
+- `[INPUTS]...`: input `.tex` files and/or folders (folders are searched recursively for `.tex`); `-i/--input` also works
+- `-o, --output <OUTPUT>`: output path, only valid with a single input (parent directories are created as needed)
+- `-f, --format <png|dds>`: output format when `-o` is not given (default: `png`); `dds` writes an uncompressed RGBA8 DDS of the decoded mip
+- `-m, --mipmap <N>`: mip level to decode (default: `0`, the top mip)
+
+Basic examples:
 
 ```bash
-ltk-tex-utils decode path/to/input.tex
+# Decode to a sibling texture.png
+ltk-tex-utils decode texture.tex
+
+# Decode to a sibling texture.dds (uncompressed RGBA8, top mip)
+ltk-tex-utils decode texture.tex -f dds
+
+# Decode to a specific path/format (inferred from the extension)
+ltk-tex-utils decode -i texture.tex -o out/texture.tiff
+
+# Decode a lower mip level
+ltk-tex-utils decode texture.tex -m 2
+
+# Batch: every .tex under a folder, PNGs written next to each file
+ltk-tex-utils decode extracted-wad/
 ```
 
-Notes:
-- The output image format is inferred from the file extension (e.g., `.png`, `.jpg`, `.tiff`).
-- Currently decodes the top-level mip (mip 0).
-- If `-o/--output` is not provided, output is written next to the input with the same name and a `.png` extension.
+### Shell (Windows)
 
-### Supported formats and filters
+Manages the Explorer context-menu integration described [above](#context-menu-right-click):
 
-- **Texture formats**: `bc1`, `bc3`, `bgra8`  
-  (ETC1/ETC2 are not supported.)
-- **Mipmap filters**: `nearest`, `triangle` (default), `catmullrom`, `lanczos3`
+```bash
+ltk-tex-utils shell install
+ltk-tex-utils shell status
+ltk-tex-utils shell uninstall
+```
 
-### Logging
+## Supported formats and filters
+
+- **Encode formats**: `bc1`, `bc3`, `bc7`, `bgra8`, `rgba16f`, `rgba32f`
+  - ETC1, ETC2, and BC5 are **not** supported for encoding.
+- **Mipmap filters**: `nearest`, `triangle`, `catmullrom` (default), `lanczos3`
+
+## Logging
 
 The tool emits human-friendly logs. Informational, debug, and trace logs go to stdout; warnings and errors go to stderr.
 
-### Development
+## Development
 
-Run from source:
+Run from source with `cargo run`:
 
 ```bash
 cargo run -p ltk-tex-utils -- <subcommand> [options]
@@ -150,8 +259,6 @@ cargo run -p ltk-tex-utils -- encode samples/albedo.png -f bc3
 cargo run -p ltk-tex-utils -- decode samples/texture.tex
 ```
 
-### Acknowledgements
+## Acknowledgments
 
-Built on top of `league-toolkit`'s texture APIs.
-
-
+- Built on top of [league-toolkit](https://github.com/LeagueToolkit)'s texture APIs.

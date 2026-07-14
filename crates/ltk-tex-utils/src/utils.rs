@@ -1,3 +1,6 @@
+use std::fs;
+use std::path::{Path, PathBuf};
+
 use ltk_texture::tex::{EncodeFormat, MipmapFilter};
 
 #[macro_export]
@@ -39,6 +42,66 @@ impl ValidFormat {
             ValidFormat::Rgba32Float => EncodeFormat::Rgba32Float,
         }
     }
+}
+
+/// Output image format for `decode` when no explicit output path is given.
+#[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DecodeOutputFormat {
+    /// PNG image
+    Png,
+    /// Uncompressed RGBA8 DDS (top mip only)
+    Dds,
+}
+
+impl DecodeOutputFormat {
+    pub fn extension(self) -> &'static str {
+        match self {
+            DecodeOutputFormat::Png => "png",
+            DecodeOutputFormat::Dds => "dds",
+        }
+    }
+}
+
+/// Expand a mix of file and directory inputs into a flat list of files.
+///
+/// Directories are walked recursively, keeping files whose extension matches
+/// `dir_extensions` (case-insensitive). Explicitly listed files are kept as-is.
+pub fn collect_input_files(
+    inputs: &[String],
+    dir_extensions: &[&str],
+) -> eyre::Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    for input in inputs {
+        let path = PathBuf::from(input);
+        if path.is_dir() {
+            collect_dir_files(&path, dir_extensions, &mut files)?;
+        } else if path.is_file() {
+            files.push(path);
+        } else {
+            eyre::bail!("input does not exist: {input}");
+        }
+    }
+    Ok(files)
+}
+
+fn collect_dir_files(
+    dir: &Path,
+    extensions: &[&str],
+    files: &mut Vec<PathBuf>,
+) -> eyre::Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            collect_dir_files(&path, extensions, files)?;
+        } else if path
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| extensions.iter().any(|x| x.eq_ignore_ascii_case(e)))
+        {
+            files.push(path);
+        }
+    }
+    Ok(())
 }
 
 pub fn parse_mipmap_filter(s: &str) -> Result<MipmapFilter, String> {
