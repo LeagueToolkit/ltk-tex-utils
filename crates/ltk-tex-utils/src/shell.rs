@@ -40,6 +40,7 @@ pub fn run(action: &ShellAction) -> Result<()> {
 
 #[cfg(windows)]
 mod windows_impl {
+    use colored::Colorize;
     use eyre::{Context, Result};
     use winreg::RegKey;
     use winreg::enums::HKEY_CURRENT_USER;
@@ -251,7 +252,8 @@ mod windows_impl {
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
                 Err(e) => {
-                    return Err(e).wrap_err_with(|| format!("failed to delete registry key {path}"));
+                    return Err(e)
+                        .wrap_err_with(|| format!("failed to delete registry key {path}"));
                 }
             }
         }
@@ -271,28 +273,69 @@ mod windows_impl {
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         let current = current_exe_string().ok();
 
-        println!("ltk-tex-utils Explorer integration status:");
+        println!("{}", "ltk-tex-utils Explorer integration".bold());
+        if let Some(exe) = &current {
+            println!("  {} {}", "pointing at".dimmed(), exe.as_str().dimmed());
+        }
+        println!();
+
+        // Column widths so the extension and label columns line up.
+        let root_w = MENUS
+            .iter()
+            .map(|m| m.root.describe().len())
+            .max()
+            .unwrap_or(0);
+        let label_w = MENUS
+            .iter()
+            .flat_map(|m| m.subverbs.iter().map(|s| s.label.len()))
+            .max()
+            .unwrap_or(0);
+
+        let (mut installed, mut stale, mut missing) = (0usize, 0usize, 0usize);
+
         for menu in MENUS {
+            let root = menu.root.describe();
             for sub in menu.subverbs {
                 let sub_path = subverb_path(menu, sub);
                 match hkcu.open_subkey(format!("{sub_path}\\command")) {
                     Ok(command_key) => {
                         let command: String = command_key.get_value("").unwrap_or_default();
-                        let stale =
+                        let is_stale =
                             matches!(&current, Some(exe) if !command.contains(exe.as_str()));
-                        let note = if stale {
-                            "  [points at a different executable]"
+                        if is_stale {
+                            stale += 1;
+                            // The path differs from ours, so show the full command it points at.
+                            println!(
+                                "  {} {:<root_w$}  {:<label_w$}  {}",
+                                "!".yellow().bold(),
+                                root,
+                                sub.label,
+                                command.yellow(),
+                            );
                         } else {
-                            ""
-                        };
-                        println!(
-                            "  [installed] {} > {} -> {command}{note}",
-                            menu.root.describe(),
-                            sub.label
-                        );
+                            installed += 1;
+                            // Drop the redundant exe prefix; it's printed once above.
+                            let args = current
+                                .as_deref()
+                                .map(|exe| command.replace(&format!("\"{exe}\" "), ""))
+                                .unwrap_or_else(|| command.clone());
+                            println!(
+                                "  {} {:<root_w$}  {:<label_w$}  {}",
+                                "\u{2713}".green().bold(),
+                                root,
+                                sub.label,
+                                args.dimmed(),
+                            );
+                        }
                     }
                     Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                        println!("  [ missing ] {} > {}", menu.root.describe(), sub.label);
+                        missing += 1;
+                        println!(
+                            "  {} {:<root_w$}  {}",
+                            "\u{2717}".red().bold(),
+                            root,
+                            sub.label.dimmed(),
+                        );
                     }
                     Err(e) => {
                         return Err(e).wrap_err_with(|| {
@@ -302,9 +345,22 @@ mod windows_impl {
                 }
             }
         }
-        if let Some(exe) = current {
-            println!("current executable: {exe}");
+
+        println!();
+        let mut parts = Vec::new();
+        if installed > 0 {
+            parts.push(format!("{installed} installed").green().to_string());
         }
+        if stale > 0 {
+            parts.push(format!("{stale} stale").yellow().to_string());
+        }
+        if missing > 0 {
+            parts.push(format!("{missing} missing").red().to_string());
+        }
+        if parts.is_empty() {
+            parts.push("not installed".dimmed().to_string());
+        }
+        println!("  {}", parts.join(", "));
         Ok(())
     }
 }

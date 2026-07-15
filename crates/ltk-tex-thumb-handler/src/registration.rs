@@ -17,23 +17,25 @@ use winreg::HKEY;
 use winreg::RegKey;
 use winreg::enums::{HKEY_CLASSES_ROOT, HKEY_LOCAL_MACHINE, KEY_WRITE};
 
-pub const SZ_CLSID_TEXTHUMBHANDLER: &str = "{2f7e3e47-3b6b-4d59-9d42-4f4b0a5ba1b9}";
+pub const SZ_CLSID_TEXTHUMBHANDLER: &str = ltk_tex_handler_shared::CLSID_TEX_THUMB_HANDLER;
 pub const SZ_TEXTHUMBHANDLER: &str = "LTK TEX Thumbnail Handler";
 
-pub const SZ_CLSID_TEXPREVIEWHANDLER: &str = "{b1e4f2a8-7c3d-4e6f-9a1b-5d8c2f7e0a34}";
+pub const SZ_CLSID_TEXPREVIEWHANDLER: &str = ltk_tex_handler_shared::CLSID_TEX_PREVIEW_HANDLER;
 pub const SZ_TEXPREVIEWHANDLER: &str = "LTK TEX Preview Handler";
 
-/// IID_IPreviewHandler — the ShellEx key under which preview handlers register.
-const SZ_PREVIEWHANDLER_IID: &str = "{8895b1c6-b41f-4c1c-a562-0d564250836f}";
+/// IID_IThumbnailProvider - the ShellEx slot Explorer reads for thumbnails.
+const SZ_THUMBNAILPROVIDER_IID: &str = ltk_tex_handler_shared::IID_ITHUMBNAILPROVIDER;
+/// IID_IPreviewHandler - the ShellEx key under which preview handlers register.
+const SZ_PREVIEWHANDLER_IID: &str = ltk_tex_handler_shared::IID_IPREVIEWHANDLER;
 /// Well-known AppID for the 64-bit prevhost.exe surrogate (system32\prevhost.exe)
-/// that hosts preview handlers. Must match the DLL's bitness — the 32-bit
+/// that hosts preview handlers. Must match the DLL's bitness - the 32-bit
 /// surrogate ({534A1E02-...}, SysWOW64) can't load a 64-bit handler.
 const SZ_PREVHOST_APPID: &str = "{6d2b5079-2f0b-48dd-ab7f-97cec514d30b}";
 /// Registry list Explorer consults to enumerate installed preview handlers.
 const SZ_PREVIEWHANDLERS_KEY: &str =
     "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\PreviewHandlers";
 
-pub const SZ_CLSID_TEXPROPERTYHANDLER: &str = "{c2f5a3b9-8d4e-4a6f-b1c7-3e9d0f2a5b48}";
+pub const SZ_CLSID_TEXPROPERTYHANDLER: &str = ltk_tex_handler_shared::CLSID_TEX_PROPERTY_HANDLER;
 pub const SZ_TEXPROPERTYHANDLER: &str = "LTK TEX Property Handler";
 /// Per-extension property handler registration lives under this HKLM key.
 const SZ_PROPERTYHANDLERS_KEY: &str =
@@ -41,6 +43,20 @@ const SZ_PROPERTYHANDLERS_KEY: &str =
 /// Custom property schema, registered so our LeagueToolkit.Tex.* props get labels.
 const PROPDESC_XML: &str = include_str!("../ltk_tex.propdesc");
 const PROPDESC_FILENAME: &str = "ltk_tex.propdesc";
+
+/// ShellEx slots that Explorer resolves through the file's ProgID *before* the
+/// bare `.tex\ShellEx`. To win when another application owns the `.tex` ProgID,
+/// override mode points these slots (under that ProgID) at our handlers. The
+/// property handler is not listed: it resolves via the per-extension HKLM
+/// PropertyHandlers list, so it is already global and needs no takeover.
+const PROGID_HANDLER_SLOTS: &[(&str, &str)] = &[
+    (SZ_THUMBNAILPROVIDER_IID, SZ_CLSID_TEXTHUMBHANDLER),
+    (SZ_PREVIEWHANDLER_IID, SZ_CLSID_TEXPREVIEWHANDLER),
+];
+
+/// Where override mode stashes the pre-takeover registry state so that
+/// `unregister_server` can put the original association back.
+const SZ_OVERRIDE_BACKUP_KEY: &str = ltk_tex_handler_shared::OVERRIDE_BACKUP_KEY;
 
 pub struct RegistryEntry {
     pub hkeyRoot: HKEY,
@@ -130,8 +146,105 @@ fn create_reg_key_and_set_value(entry: &RegistryEntry) -> Result<()> {
     Ok(())
 }
 
-/// Register COM server and shell extension (following Microsoft pattern)
-pub unsafe fn register_server(dll_register_server_fn: *const u16) -> Result<()> {
+/// Read the default (unnamed) value of an HKCR subkey, if the key exists.
+fn hkcr_default(path: &str) -> Option<String> {
+    RegKey::predef(HKEY_CLASSES_ROOT)
+        .open_subkey(path)
+        .ok()
+        .and_then(|k| k.get_value::<String, _>("").ok())
+}
+
+/// Take over the `.tex` ProgID's thumbnail/preview ShellEx slots, recording the
+/// prior state under [`SZ_OVERRIDE_BACKUP_KEY`] so [`restore_progid_override`]
+/// can undo it. No-op when `.tex` has no ProgID - extension-level registration
+/// already wins in that case, so there is nothing to override. The double-click
+/// "open" verb is left untouched; only the thumbnail/preview slots move.
+fn apply_progid_override() -> Result<()> {
+    // The ProgID currently associated with `.tex` (e.g. a LaTeX editor's).
+    let progid = hkcr_default(".tex").unwrap_or_default();
+    let progid = progid.trim();
+    if progid.is_empty() {
+        return Ok(());
+    }
+
+    let hkcr = RegKey::predef(HKEY_CLASSES_ROOT);
+    let (backup, _) = RegKey::predef(HKEY_LOCAL_MACHINE)
+        .create_subkey(SZ_OVERRIDE_BACKUP_KEY)
+        .map_err(|_| Error::from(E_FAIL))?;
+    backup
+        .set_value("ProgId", &progid)
+        .map_err(|_| Error::from(E_FAIL))?;
+
+    for (iid, our_clsid) in PROGID_HANDLER_SLOTS {
+        let slot_path = format!("{progid}\\ShellEx\\{iid}");
+        let prior = hkcr_default(&slot_path);
+
+        // Only record the prior value the first time we take the slot. If it is
+        // already ours (a re-install without an uninstall), keep whatever the
+        // backup already holds so the true original is not lost.
+        if prior.as_deref() != Some(*our_clsid) {
+            match &prior {
+                Some(v) => {
+                    backup.set_value(*iid, v).map_err(|_| Error::from(E_FAIL))?;
+                }
+                None => {
+                    // Absent before us; ensure no stale backup entry lingers so
+                    // restore knows to delete the slot we are about to create.
+                    let _ = backup.delete_value(*iid);
+                }
+            }
+        }
+
+        let (slot, _) = hkcr
+            .create_subkey(&slot_path)
+            .map_err(|_| Error::from(E_FAIL))?;
+        slot.set_value("", our_clsid)
+            .map_err(|_| Error::from(E_FAIL))?;
+    }
+
+    Ok(())
+}
+
+/// Undo [`apply_progid_override`] from the backup key (best effort). Safe to call
+/// unconditionally: it is a no-op when no override was ever applied.
+fn restore_progid_override() {
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let Ok(backup) = hklm.open_subkey(SZ_OVERRIDE_BACKUP_KEY) else {
+        return;
+    };
+
+    let progid: String = backup.get_value("ProgId").unwrap_or_default();
+    if !progid.trim().is_empty() {
+        let hkcr = RegKey::predef(HKEY_CLASSES_ROOT);
+        for (iid, _our_clsid) in PROGID_HANDLER_SLOTS {
+            let slot_path = format!("{}\\ShellEx\\{iid}", progid.trim());
+            match backup.get_value::<String, _>(*iid) {
+                // Slot had a prior owner - restore it.
+                Ok(prev) => {
+                    if let Ok((slot, _)) = hkcr.create_subkey(&slot_path) {
+                        let _ = slot.set_value("", &prev);
+                    }
+                }
+                // Slot did not exist before us - remove the one we created.
+                Err(_) => {
+                    let _ = hkcr.delete_subkey_all(&slot_path);
+                }
+            }
+        }
+    }
+
+    let _ = hklm.delete_subkey_all(SZ_OVERRIDE_BACKUP_KEY);
+}
+
+/// Register COM server and shell extension (following Microsoft pattern).
+///
+/// When `override_existing` is set, additionally take over the `.tex` ProgID's
+/// thumbnail/preview slots so our handlers win even if another application
+/// already owns the extension (see [`apply_progid_override`]).
+pub unsafe fn register_server(
+    dll_register_server_fn: *const u16,
+    override_existing: bool,
+) -> Result<()> {
     // Get DLL path
     let mut hmodule = HMODULE(std::ptr::null_mut());
     unsafe {
@@ -171,7 +284,7 @@ pub unsafe fn register_server(dll_register_server_fn: *const u16) -> Result<()> 
         // .tex file association with IThumbnailProvider
         RegistryEntry::new(
             HKEY_CLASSES_ROOT,
-            ".tex\\ShellEx\\{e357fccd-a995-4576-b01f-234630154e96}",
+            format!(".tex\\ShellEx\\{}", SZ_THUMBNAILPROVIDER_IID),
             None::<String>,
             SZ_CLSID_TEXTHUMBHANDLER,
         ),
@@ -284,9 +397,14 @@ pub unsafe fn register_server(dll_register_server_fn: *const u16) -> Result<()> 
         .set_value("", &SZ_CLSID_TEXPROPERTYHANDLER)
         .map_err(|_| Error::from(E_FAIL))?;
 
-    // Register the custom property schema (best effort — canonical props still
+    // Register the custom property schema (best effort - canonical props still
     // work without it; only our labelled TEX Format / Mip / Alpha rows need it).
     unsafe { register_schema(&dll_path) };
+
+    // Opt-in: seize the ProgID slots from whoever currently owns `.tex`.
+    if override_existing {
+        apply_progid_override()?;
+    }
 
     // Disable process isolation for better debugging
     let hkcr = RegKey::predef(HKEY_CLASSES_ROOT);
@@ -308,8 +426,11 @@ pub unsafe fn register_server(dll_register_server_fn: *const u16) -> Result<()> 
 pub unsafe fn unregister_server() -> Result<()> {
     let hkcr = RegKey::predef(HKEY_CLASSES_ROOT);
 
+    // Put back any association override mode took over (no-op if never applied).
+    restore_progid_override();
+
     let _ = hkcr.delete_subkey_all(format!("CLSID\\{}", SZ_CLSID_TEXTHUMBHANDLER));
-    let _ = hkcr.delete_subkey_all(".tex\\ShellEx\\{e357fccd-a995-4576-b01f-234630154e96}");
+    let _ = hkcr.delete_subkey_all(format!(".tex\\ShellEx\\{}", SZ_THUMBNAILPROVIDER_IID));
 
     // Preview handler
     let _ = hkcr.delete_subkey_all(format!("CLSID\\{}", SZ_CLSID_TEXPREVIEWHANDLER));

@@ -3,7 +3,11 @@
 param(
     [string]$Owner = "LeagueToolkit",
     [string]$Repo  = "ltk-tex-utils",
-    [string]$InstallDir = "$env:ProgramFiles\LeagueToolkit\ltk-tex-thumb-handler"
+    [string]$InstallDir = "$env:ProgramFiles\LeagueToolkit\ltk-tex-thumb-handler",
+    # Take over .tex thumbnails/previews from any application that already owns the
+    # type. NOTE: .tex is also the LaTeX source extension. The double-click "open"
+    # association is left untouched, and uninstalling restores the previous owner.
+    [switch]$Override
 )
 
 $ErrorActionPreference = 'Stop'
@@ -60,6 +64,25 @@ Copy-Item -LiteralPath $tmpPath -Destination $dllPath -Force
 # Ensure the DLL exists
 if (!(Test-Path -LiteralPath $dllPath)) {
     throw "ltk_tex_thumb_handler.dll not found after download: $dllPath"
+}
+
+# Decide whether to take over an existing .tex association.
+$doOverride = [bool]$Override
+if (-not $doOverride) {
+    Write-Host "'.tex' is also the LaTeX source extension." -ForegroundColor Yellow
+    try {
+        $ans = Read-Host "Override any existing .tex thumbnail/preview handler? (y/N)"
+        if ($ans -match '^(y|yes)$') { $doOverride = $true }
+    } catch {
+        # piped through
+    }
+}
+if ($doOverride) {
+    Write-Host "Override mode: taking over .tex previews from any existing owner." -ForegroundColor Yellow
+    Write-Host "(the double-click 'open' association is left untouched; uninstall restores it)" -ForegroundColor Gray
+    
+    # The DLL's DllRegisterServer reads this; Start-Process inherits it.
+    $env:LTK_TEX_HANDLER_OVERRIDE = '1'
 }
 
 # Register the COM DLL

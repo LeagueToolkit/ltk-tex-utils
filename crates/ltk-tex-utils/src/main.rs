@@ -4,6 +4,7 @@ mod auto_mode;
 mod batch;
 mod cli;
 mod commands;
+mod handler;
 mod logging;
 mod shell;
 mod utils;

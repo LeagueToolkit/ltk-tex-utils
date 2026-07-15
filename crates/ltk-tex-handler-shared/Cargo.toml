@@ -1,0 +1,11 @@
+[package]
+name = "ltk-tex-handler-shared"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+description = "Registry identifiers and toggles shared by the .tex shell handler DLL and the ltk-tex-utils CLI"
+
+[lib]
+name = "ltk_tex_handler_shared"

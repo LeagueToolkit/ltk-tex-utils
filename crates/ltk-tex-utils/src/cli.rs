@@ -4,6 +4,7 @@ use clap::{
 };
 
 use crate::commands::{self, DecodeArgs, EncodeArgs, InfoArgs};
+use crate::handler;
 use crate::shell;
 
 #[derive(Parser, Debug)]
@@ -39,6 +40,11 @@ pub enum Commands {
         #[command(subcommand)]
         action: shell::ShellAction,
     },
+    /// Install/uninstall the .tex thumbnail & preview handler (needs admin)
+    Handler {
+        #[command(subcommand)]
+        action: handler::HandlerAction,
+    },
 }
 
 /// Parse the command line with styled help/usage output.
@@ -66,6 +72,7 @@ pub fn run(command: Commands) -> eyre::Result<()> {
         Commands::Encode(args) => commands::encode::run(args),
         Commands::Decode(args) => commands::decode::run(args),
         Commands::Shell { action } => shell::run(&action),
+        Commands::Handler { action } => handler::run(&action),
     }
 }
 

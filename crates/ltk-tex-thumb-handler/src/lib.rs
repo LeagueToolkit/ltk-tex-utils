@@ -119,7 +119,11 @@ pub unsafe extern "system" fn DllGetClassObject(
 /// This function modifies the Windows registry and requires administrative privileges.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn DllRegisterServer() -> HRESULT {
-    match unsafe { register_server(DllRegisterServer as *const u16) } {
+    let override_existing = std::env::var(ltk_tex_handler_shared::OVERRIDE_ENV)
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    match unsafe { register_server(DllRegisterServer as *const u16, override_existing) } {
         Ok(()) => S_OK,
         Err(e) => e.into(),
     }

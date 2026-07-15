@@ -31,3 +31,4 @@ winreg = { version = "0.52", optional = false }
 chrono = "0.4"
 image = { version = "0.25", default-features = false }
 ltk_texture = { version = "0.6.0" }
+ltk-tex-handler-shared = { path = "../ltk-tex-handler-shared" }

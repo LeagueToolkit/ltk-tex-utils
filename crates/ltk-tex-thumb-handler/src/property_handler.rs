@@ -26,7 +26,7 @@ const PID_IMAGE_HORIZONTAL_SIZE: u32 = 3; // System.Image.HorizontalSize
 const PID_IMAGE_VERTICAL_SIZE: u32 = 4; // System.Image.VerticalSize
 const PID_IMAGE_DIMENSIONS: u32 = 13; // System.Image.Dimensions
 
-// Our custom property set — the formatID/propIDs MUST match ltk_tex.propdesc.
+// Our custom property set - the formatID/propIDs MUST match ltk_tex.propdesc.
 const FMTID_LTK: GUID = GUID::from_u128(0x8F3E9A21_4B7C_4D2E_9C1A_6E5D4F3A2B10);
 const PID_LTK_FORMAT: u32 = 2;
 const PID_LTK_MIP_LEVELS: u32 = 3;

@@ -18,6 +18,8 @@ tracing-subscriber = { version = "0.3.2", features = ["local-time"] }
 image = { version = "0.25.2" }
 image_dds = "0.6"
 
+ltk-tex-handler-shared = { path = "../ltk-tex-handler-shared" }
+
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"
 

@@ -836,11 +836,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ltk-tex-handler-shared"
+version = "0.1.0"
+
+[[package]]
 name = "ltk-tex-thumb-handler"
 version = "0.1.0"
 dependencies = [
  "chrono",
  "image",
+ "ltk-tex-handler-shared",
  "ltk_texture",
  "windows",
  "windows-core",
@@ -857,6 +862,7 @@ dependencies = [
  "eyre",
  "image",
  "image_dds",
+ "ltk-tex-handler-shared",
  "ltk_texture",
  "tracing",
  "tracing-subscriber",

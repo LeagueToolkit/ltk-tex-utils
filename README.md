@@ -78,11 +78,48 @@ This will:
 
 You may need to restart Windows Explorer (or your computer) for thumbnails to appear.
 
-To uninstall, run this in an Administrator **Command Prompt** (it uses `cmd`-style `%ProgramFiles%` expansion):
+#### Coexisting with other `.tex` handlers
+
+By default the handler registers at the extension level and **does not** take the
+`.tex` type away from another application that already owns it. This is deliberate:
+`.tex` is also the LaTeX source extension, and other tools (Photoshop, the RitoTex
+plugin, RitoShark's provider) may already claim it. In the default mode, if one of
+those already owns `.tex`, its thumbnail/preview wins and ours simply stays out of
+the way.
+
+If you *do* want League previews to win, pass `-Override` to the script (it will
+otherwise prompt):
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/LeagueToolkit/ltk-tex-utils/main/scripts/install-thumbnail-handler.ps1 | iex; # add -Override when running the script directly
+```
+
+Override mode takes over only the **thumbnail and preview** slots of whichever
+application currently owns `.tex`, backing up the previous owner so uninstalling
+restores it. The double-click **"open"** association (e.g. your LaTeX editor) is
+left untouched.
+
+#### Managing the handler from the CLI
+
+If you already have `ltk-tex-utils` installed and the DLL present (next to the
+executable, or in the default install directory above), you can register it from
+an **elevated** terminal instead of the script:
+
+```powershell
+ltk-tex-utils handler install              # coexist (default)
+ltk-tex-utils handler install --override   # take over .tex previews (prompts about LaTeX)
+ltk-tex-utils handler status               # show registration state and mode
+ltk-tex-utils handler uninstall            # unregister and restore any overridden association
+```
+
+To uninstall, use `ltk-tex-utils handler uninstall`, or run this in an Administrator
+**Command Prompt** (it uses `cmd`-style `%ProgramFiles%` expansion):
 
 ```cmd
 regsvr32.exe /u "%ProgramFiles%\LeagueToolkit\ltk-tex-thumb-handler\ltk_tex_thumb_handler.dll"
 ```
+
+(`regsvr32 /u` also restores any association that override mode took over.)
 
 ### Context menu (right-click)
 
@@ -231,6 +268,18 @@ Manages the Explorer context-menu integration described [above](#context-menu-ri
 ltk-tex-utils shell install
 ltk-tex-utils shell status
 ltk-tex-utils shell uninstall
+```
+
+### Handler (Windows)
+
+Registers the `.tex` thumbnail/preview handler DLL (requires an **elevated** terminal;
+see [Coexisting with other `.tex` handlers](#coexisting-with-other-tex-handlers)):
+
+```bash
+ltk-tex-utils handler install              # coexist with any existing .tex owner (default)
+ltk-tex-utils handler install --override   # take over .tex previews (prompts about LaTeX; --yes skips)
+ltk-tex-utils handler status
+ltk-tex-utils handler uninstall
 ```
 
 ## Supported formats and filters
