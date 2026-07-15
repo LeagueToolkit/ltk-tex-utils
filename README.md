@@ -5,10 +5,7 @@
   <h1>ltk-tex-utils</h1>
 </div>
 
-[![CI](https://github.com/LeagueToolkit/ltk-tex-utils/actions/workflows/ci.yml/badge.svg)](https://github.com/LeagueToolkit/ltk-tex-utils/actions/workflows/ci.yml)
-[![Release-plz](https://github.com/LeagueToolkit/ltk-tex-utils/actions/workflows/release-plz.yml/badge.svg)](https://github.com/LeagueToolkit/ltk-tex-utils/actions/workflows/release-plz.yml)
-
-Command-line utilities for working with League of Legends `.tex` textures, powered by `league-toolkit`. Inspect, encode, and decode TEX files, with a Windows Explorer thumbnail provider for previewing them in place.
+Command-line utilities for working with League of Legends `.tex` textures, powered by `league-toolkit`. Inspect, encode, and decode TEX files, with a **Windows Explorer integration enabling thumbnails, previews and custom context menu commands**.
 
 <div align="center">
 
