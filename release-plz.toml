@@ -18,3 +18,8 @@ release = false
 name = "ltk-tex-utils"
 publish = false
 release = true
+
+[[package]]
+name = "ltk-tex-handler-shared"
+publish = false
+release = false
