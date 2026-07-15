@@ -46,6 +46,32 @@ Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tmpPath -UseBasicPa
 Write-Host "Placing binary into $InstallDir" -ForegroundColor Yellow
 Copy-Item -LiteralPath $tmpPath -Destination $exePath -Force
 
+# The thumbnail-handler DLL ships next to the exe: `handler install` registers
+# it from there, and the Windows 11 context menu package requires it.
+$dllAssetName = "ltk-tex-thumb-handler.dll"
+$dllAsset = $release.assets | Where-Object { $_.name -eq $dllAssetName } | Select-Object -First 1
+if ($dllAsset) {
+    $dllPath = Join-Path $InstallDir 'ltk_tex_thumb_handler.dll'
+    $dllTmp = Join-Path $env:TEMP $dllAssetName
+
+    Write-Host "Downloading $dllAssetName ($version)..." -ForegroundColor Yellow
+    Invoke-WebRequest -Uri $dllAsset.browser_download_url -OutFile $dllTmp -UseBasicParsing
+
+    try {
+        Copy-Item -LiteralPath $dllTmp -Destination $dllPath -Force
+    } catch {
+        # Explorer keeps a registered DLL loaded; a loaded DLL can't be
+        # overwritten, but it can be renamed out of the way.
+        $stale = "$dllPath.old"
+        Remove-Item -LiteralPath $stale -Force -ErrorAction SilentlyContinue
+        Move-Item -LiteralPath $dllPath -Destination $stale -Force
+        Copy-Item -LiteralPath $dllTmp -Destination $dllPath -Force
+    }
+    Remove-Item -LiteralPath $dllTmp -Force -ErrorAction SilentlyContinue
+} else {
+    Write-Warning "Could not find $dllAssetName in the latest release; Explorer integration (thumbnails, preview pane, Windows 11 context menu) will be unavailable."
+}
+
 # Create a shim directory so PATH is simple and stable
 $binDir = Join-Path $InstallDir 'bin'
 if (!(Test-Path -LiteralPath $binDir)) { New-Item -ItemType Directory -Path $binDir | Out-Null }
@@ -74,5 +100,9 @@ if (-not ($currentPath -split ';' | Where-Object { $_ -eq $binDir })) {
 
 Write-Host "Installed ltk-tex-utils $version to $InstallDir" -ForegroundColor Green
 Write-Host "Open a new terminal and run: ltk-tex-utils --help" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Optional Explorer integration:" -ForegroundColor Cyan
+Write-Host "  ltk-tex-utils shell install    # right-click context menu (no admin needed)"
+Write-Host "  ltk-tex-utils handler install  # .tex thumbnails & preview pane (elevates via UAC)"
 
 

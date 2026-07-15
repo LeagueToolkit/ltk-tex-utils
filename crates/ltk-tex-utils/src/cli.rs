@@ -40,7 +40,7 @@ pub enum Commands {
         #[command(subcommand)]
         action: shell::ShellAction,
     },
-    /// Install/uninstall the .tex thumbnail & preview handler (needs admin)
+    /// Install/uninstall the .tex thumbnail & preview handler (elevates via UAC when needed)
     Handler {
         #[command(subcommand)]
         action: handler::HandlerAction,

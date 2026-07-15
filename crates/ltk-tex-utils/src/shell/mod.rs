@@ -5,17 +5,33 @@
 //! rights are required. File verbs are attached to `SystemFileAssociations\<ext>` so they
 //! apply regardless of which application owns the extension's ProgID.
 //!
-//! All entries are grouped under a single cascading **ltk-tex-utils** submenu. This is done
+//! All entries are grouped under a single cascading **LTK Toolz** submenu. This is done
 //! with a parent verb carrying `MUIVerb` and an empty `SubCommands` value; Explorer then
 //! enumerates the sub-verbs from a nested `shell` subkey.
+//!
+//! On Windows 11 the packaged menu (see `modern`/`manifest`) is registered *instead*,
+//! because it serves both the modern menu and "Show more options"; the registry verbs
+//! here are the fallback when the package can't register, or an explicit choice via
+//! `shell install --classic`.
 
 use eyre::Result;
+
+#[cfg(windows)]
+mod manifest;
+#[cfg(windows)]
+pub(crate) mod modern;
 
 /// Actions for the `shell` subcommand.
 #[derive(clap::Subcommand, Debug)]
 pub enum ShellAction {
     /// Register the ltk-tex-utils Explorer context-menu entries (per-user, no admin required)
-    Install,
+    Install {
+        /// Install the classic registry menu even where the Windows 11 packaged menu is
+        /// available (renders only under "Show more options", but stays pinned to the top
+        /// of the .tex context menu)
+        #[arg(long)]
+        classic: bool,
+    },
     /// Remove the ltk-tex-utils Explorer context-menu entries
     Uninstall,
     /// Show whether the context-menu entries are installed and where they point
@@ -26,7 +42,7 @@ pub fn run(action: &ShellAction) -> Result<()> {
     #[cfg(windows)]
     {
         match action {
-            ShellAction::Install => windows_impl::install(),
+            ShellAction::Install { classic } => windows_impl::install(*classic),
             ShellAction::Uninstall => windows_impl::uninstall(),
             ShellAction::Status => windows_impl::status(),
         }
@@ -78,7 +94,7 @@ mod windows_impl {
         }
     }
 
-    /// A single entry inside the cascading `ltk-tex-utils` submenu. `command` uses `{exe}`
+    /// A single entry inside the cascading [`MENU_LABEL`] submenu. `command` uses `{exe}`
     /// as a placeholder for the executable path; Explorer substitutes `%1` with the clicked
     /// item. With multiple items selected, Explorer invokes the verb once per item.
     struct SubVerb {
@@ -87,7 +103,7 @@ mod windows_impl {
         command: &'static str,
     }
 
-    /// A cascading `ltk-tex-utils` submenu attached to one registry class. The parent verb
+    /// A cascading [`MENU_LABEL`] submenu attached to one registry class. The parent verb
     /// holds the sub-verbs in a nested `shell` key.
     struct Menu {
         root: VerbRoot,
@@ -96,10 +112,10 @@ mod windows_impl {
         subverbs: &'static [SubVerb],
     }
 
+    use ltk_tex_handler_shared::MENU_LABEL;
+
     /// Parent key name of the cascading submenu (under `<class>\shell`).
     const MENU_KEY: &str = "ltktexutils";
-    /// Label shown for the cascading submenu itself.
-    const MENU_LABEL: &str = "ltk-tex-utils";
 
     const MENUS: &[Menu] = &[
         Menu {
@@ -174,8 +190,77 @@ mod windows_impl {
         Ok(exe.to_string_lossy().into_owned())
     }
 
-    pub fn install() -> Result<()> {
+    pub fn install(classic: bool) -> Result<()> {
         let exe = current_exe_string()?;
+        let exe_dir = std::path::Path::new(&exe)
+            .parent()
+            .map(std::path::Path::to_path_buf)
+            .unwrap_or_default();
+
+        // Prefer the packaged menu: on Windows 11 it renders in BOTH the
+        // modern menu and "Show more options", so installing the registry
+        // cascade alongside it would only produce duplicates - including a
+        // permanently empty flyout at the top of the modern menu, which can
+        // render a `SubCommands` parent but never enumerates its nested
+        // `shell` subkey. The registry verbs below remain as the fallback for
+        // pre-Win11, a missing handler DLL, or Developer Mode being off.
+        //
+        // `--classic` opts out of the packaged menu entirely: the packaged
+        // command has no placement control, while the registry cascade can
+        // pin itself to the top of the .tex menu (`Position=Top`) - a
+        // trade-off only the user can weigh.
+        if classic {
+            println!("Installing the classic registry menu (--classic).\n");
+        } else {
+            match super::modern::install(&exe_dir) {
+                Ok(None) => {
+                    if remove_classic_menus()? > 0 {
+                        println!(
+                            "Removed the classic registry menu (superseded by the packaged one)."
+                        );
+                    }
+                    println!(
+                        "{} Windows 11 context menu registered {}",
+                        "\u{2713}".green().bold(),
+                        "(restart Explorer if it doesn't show up right away)".dimmed()
+                    );
+                    println!(
+                        "Right-click a .tex / .dds / .png file or a folder and open the \
+                         '{MENU_LABEL}' menu."
+                    );
+                    println!("(pointing at {exe})");
+                    println!(
+                        "{}",
+                        "Prefer the menu pinned to the top for .tex files? Re-run with \
+                         'shell install --classic' (renders only under 'Show more options')."
+                            .dimmed()
+                    );
+                    return Ok(());
+                }
+                Ok(Some(skip)) => println!(
+                    "{} Windows 11 modern context menu skipped: {skip}\n  \
+                     (falling back to the classic menu under 'Show more options')\n",
+                    "note:".yellow().bold()
+                ),
+                Err(e) => println!(
+                    "{} Windows 11 modern context menu registration failed:\n  {e:#}\n  \
+                     (falling back to the classic menu under 'Show more options')\n",
+                    "warning:".yellow().bold()
+                ),
+            }
+        }
+
+        // A package from an earlier install would duplicate (or shadow) the
+        // registry verbs we are about to write - drop it.
+        match super::modern::uninstall() {
+            Ok(true) => println!("Removed a stale Windows 11 menu package registration."),
+            Ok(false) => {}
+            Err(e) => println!(
+                "{} failed to remove the stale Windows 11 menu package:\n  {e:#}",
+                "warning:".yellow().bold()
+            ),
+        }
+
         // First icon resource of the executable (embedded by the build script).
         let icon = format!("\"{exe}\",0");
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
@@ -239,7 +324,9 @@ mod windows_impl {
         Ok(())
     }
 
-    pub fn uninstall() -> Result<()> {
+    /// Delete every classic cascade from the registry; returns how many menus
+    /// existed.
+    fn remove_classic_menus() -> Result<usize> {
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         let mut removed = 0usize;
 
@@ -257,10 +344,29 @@ mod windows_impl {
                 }
             }
         }
+        Ok(removed)
+    }
 
-        if removed == 0 {
+    pub fn uninstall() -> Result<()> {
+        let removed = remove_classic_menus()?;
+
+        let modern_removed = match super::modern::uninstall() {
+            Ok(removed) => removed,
+            Err(e) => {
+                println!(
+                    "{} failed to remove the Windows 11 modern context menu:\n  {e:#}",
+                    "warning:".yellow().bold()
+                );
+                false
+            }
+        };
+        if modern_removed {
+            println!("Windows 11 modern context menu removed.");
+        }
+
+        if removed == 0 && !modern_removed {
             println!("ltk-tex-utils Explorer integration was not installed; nothing to remove.");
-        } else {
+        } else if removed > 0 {
             println!(
                 "ltk-tex-utils Explorer integration removed ({removed} menu{}).",
                 if removed == 1 { "" } else { "s" }
@@ -272,10 +378,40 @@ mod windows_impl {
     pub fn status() -> Result<()> {
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         let current = current_exe_string().ok();
+        let exe_dir = current
+            .as_deref()
+            .and_then(|exe| std::path::Path::new(exe).parent())
+            .map(std::path::Path::to_path_buf)
+            .unwrap_or_default();
 
         println!("{}", "ltk-tex-utils Explorer integration".bold());
         if let Some(exe) = &current {
             println!("  {} {}", "pointing at".dimmed(), exe.as_str().dimmed());
+        }
+        println!();
+
+        let modern_version = super::modern::registered_version().unwrap_or_default();
+        if let Err(e) = super::modern::print_status(&exe_dir, modern_version.as_deref()) {
+            println!(
+                "  {} modern menu (Win11)  status unavailable: {e:#}",
+                "!".yellow().bold()
+            );
+        }
+
+        // With the packaged menu registered, absent registry verbs are the
+        // intended state, not eleven missing rows.
+        let classic_any = MENUS.iter().any(|menu| {
+            menu.subverbs.iter().any(|sub| {
+                hkcu.open_subkey(format!("{}\\command", subverb_path(menu, sub)))
+                    .is_ok()
+            })
+        });
+        if !classic_any && modern_version.is_some() {
+            println!(
+                "    classic menu         {}",
+                "not installed (the modern menu covers both menus)".dimmed()
+            );
+            return Ok(());
         }
         println!();
 

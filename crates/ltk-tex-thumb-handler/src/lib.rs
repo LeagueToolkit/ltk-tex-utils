@@ -14,6 +14,7 @@ use windows::core::*;
 
 mod class_factory;
 mod debug;
+mod explorer_command;
 mod image_processing;
 mod preview_handler;
 mod property_handler;
@@ -42,6 +43,12 @@ pub const CLSID_TEX_PREVIEW_HANDLER: GUID = GUID::from_u128(0xb1e4f2a8_7c3d_4e6f
 /// {c2f5a3b9-8d4e-4a6f-b1c7-3e9d0f2a5b48}
 pub const CLSID_TEX_PROPERTY_HANDLER: GUID =
     GUID::from_u128(0xc2f5a3b9_8d4e_4a6f_b1c7_3e9d0f2a5b48);
+
+/// CLSID for the Windows 11 modern context-menu IExplorerCommand.
+/// Activated via packaged COM only (see `explorer_command.rs`).
+/// {6f8e2b34-9d1c-4a57-b8e0-2c3d4f5a6b71}
+pub const CLSID_TEX_EXPLORER_COMMAND: GUID =
+    GUID::from_u128(0x6f8e2b34_9d1c_4a57_b8e0_2c3d4f5a6b71);
 
 /// Module reference count for DLL lifetime management
 static G_CREF_MODULE: AtomicI32 = AtomicI32::new(0);

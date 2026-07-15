@@ -17,6 +17,9 @@ pub const CLSID_TEX_THUMB_HANDLER: &str = "{2f7e3e47-3b6b-4d59-9d42-4f4b0a5ba1b9
 pub const CLSID_TEX_PREVIEW_HANDLER: &str = "{b1e4f2a8-7c3d-4e6f-9a1b-5d8c2f7e0a34}";
 /// CLSID of the TEX property handler COM server.
 pub const CLSID_TEX_PROPERTY_HANDLER: &str = "{c2f5a3b9-8d4e-4a6f-b1c7-3e9d0f2a5b48}";
+/// CLSID of the `IExplorerCommand` context-menu server (Windows 11 modern menu).
+/// Activated via packaged COM (the sparse package manifest), never via regsvr32.
+pub const CLSID_TEX_EXPLORER_COMMAND: &str = "{6f8e2b34-9d1c-4a57-b8e0-2c3d4f5a6b71}";
 
 /// IID_IThumbnailProvider - Explorer's thumbnail ShellEx slot.
 pub const IID_ITHUMBNAILPROVIDER: &str = "{e357fccd-a995-4576-b01f-234630154e96}";
@@ -47,3 +50,23 @@ pub const OVERRIDE_BACKUP_OPENWITH_SUBKEY: &str = "OpenWithProgids";
 /// install script before invoking `regsvr32`, because COM registration
 /// entrypoints take no args.
 pub const OVERRIDE_ENV: &str = "LTK_TEX_HANDLER_OVERRIDE";
+
+/// File name of the handler DLL, shared by the CLI (which locates it) and the
+/// sparse package manifest (which references it relative to the install dir).
+pub const HANDLER_DLL_FILE_NAME: &str = "ltk_tex_thumb_handler.dll";
+/// File name of the CLI executable, referenced by the sparse package manifest.
+pub const CLI_EXE_FILE_NAME: &str = "ltk-tex-utils.exe";
+
+/// User-visible title of the cascading Explorer context menu, shared by the
+/// classic registry cascade (`MUIVerb`), the packaged Windows 11 command
+/// (`IExplorerCommand::GetTitle`), and the package's display names so every
+/// surface reads the same.
+pub const MENU_LABEL: &str = "LTK Toolz";
+
+/// Identity `Name` of the sparse package that puts the ltk-tex-utils commands
+/// into the Windows 11 modern context menu.
+pub const PACKAGE_IDENTITY_NAME: &str = "LeagueToolkit.ltk-tex-utils";
+/// Identity `Publisher` of the sparse package. Plain CN: the package is
+/// registered unsigned through Developer Mode's loose-manifest path, which
+/// rejects the `OID.2.25...` unsigned-namespace marker used by `-AllowUnsigned`.
+pub const PACKAGE_PUBLISHER: &str = "CN=LeagueToolkit";

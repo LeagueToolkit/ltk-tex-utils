@@ -69,10 +69,8 @@ const SZ_OPENWITH_BACKUP_SUBKEY: &str = ltk_tex_handler_shared::OVERRIDE_BACKUP_
 /// The hives where `.tex\OpenWithProgids` entries can live. Addressed explicitly
 /// rather than through the merged HKCR view so each removed entry is restored to
 /// the hive it came from.
-const OPENWITH_HIVES: &[(&str, HKEY)] = &[
-    ("HKCU", HKEY_CURRENT_USER),
-    ("HKLM", HKEY_LOCAL_MACHINE),
-];
+const OPENWITH_HIVES: &[(&str, HKEY)] =
+    &[("HKCU", HKEY_CURRENT_USER), ("HKLM", HKEY_LOCAL_MACHINE)];
 /// `.tex\OpenWithProgids` path relative to a hive's classes root.
 const OPENWITH_TEX_PATH: &str = "Software\\Classes\\.tex\\OpenWithProgids";
 
@@ -212,8 +210,8 @@ fn release_tex_progid() {
 /// user has made is not touched.
 fn apply_openwith_override() -> Result<()> {
     for (hive_name, hive) in OPENWITH_HIVES {
-        let Ok(key) = RegKey::predef(*hive)
-            .open_subkey_with_flags(OPENWITH_TEX_PATH, KEY_READ | KEY_WRITE)
+        let Ok(key) =
+            RegKey::predef(*hive).open_subkey_with_flags(OPENWITH_TEX_PATH, KEY_READ | KEY_WRITE)
         else {
             continue;
         };
