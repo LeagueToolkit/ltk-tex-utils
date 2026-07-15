@@ -1,6 +1,7 @@
 //! Install/uninstall the `.tex` thumbnail + preview shell handler DLL.
 //!
-//! This drives the same COM DLL that `regsvr32` registers. When another
+//! Install copies the DLL into Program Files and registers that copy (see
+//! `installed_dll_path` for why). When another
 //! application competes for `.tex` - a foreign ProgID owning the extension, or
 //! OpenWithProgids entries that steal Explorer's Type column - install takes
 //! over the contested slots (the double-click 'open' association is never
@@ -17,9 +18,9 @@ use eyre::Result;
 /// Actions for the `handler` subcommand.
 #[derive(clap::Subcommand, Debug)]
 pub enum HandlerAction {
-    /// Register the `.tex` thumbnail/preview handler (requires an elevated shell).
-    /// If another application owns `.tex` previews, takes them over
-    /// (reversible via `handler uninstall`).
+    /// Register the `.tex` thumbnail/preview handler (shows a UAC prompt when
+    /// the terminal isn't elevated). If another application owns `.tex`
+    /// previews, takes them over (reversible via `handler uninstall`).
     Install {
         /// Never take over an existing `.tex` preview owner; register alongside it only
         #[arg(long = "no-override")]
@@ -63,11 +64,30 @@ mod windows_impl {
         OVERRIDE_BACKUP_OPENWITH_SUBKEY, OVERRIDE_ENV, PROGID_TEX,
     };
 
+    use crate::shell::modern::ps_quote;
+
     const DLL_NAME: &str = "ltk_tex_thumb_handler.dll";
 
-    /// Locate the handler DLL: next to this executable first (source builds and
-    /// side-by-side installs), then the default install directory used by the
-    /// `install-thumbnail-handler.ps1` script.
+    /// Machine-wide home of the *registered* DLL. The COM registration lives in
+    /// HKLM, so every account - and the file dialogs of elevated processes,
+    /// which load shell extensions in-proc - resolves it; the DLL it points at
+    /// must therefore not sit in a user-writable location like the exe
+    /// directory under `%LOCALAPPDATA%`, or any user-level process could plant
+    /// code that runs elevated. Install copies the DLL here (admin-writable
+    /// Program Files) and registers the copy. Same directory the retired
+    /// `install-thumbnail-handler.ps1` script used, so legacy installs are
+    /// managed in place.
+    fn installed_dll_path() -> Result<PathBuf> {
+        let program_files = std::env::var("ProgramFiles").wrap_err("ProgramFiles is not set")?;
+        Ok(PathBuf::from(program_files)
+            .join("LeagueToolkit")
+            .join("ltk-tex-thumb-handler")
+            .join(DLL_NAME))
+    }
+
+    /// Locate a handler DLL to work with: next to this executable first (where
+    /// the quick-install script and source builds put it), then the installed
+    /// copy in Program Files.
     fn find_dll() -> Result<PathBuf> {
         let mut candidates: Vec<PathBuf> = Vec::new();
 
@@ -76,13 +96,8 @@ mod windows_impl {
         {
             candidates.push(dir.join(DLL_NAME));
         }
-        if let Ok(program_files) = std::env::var("ProgramFiles") {
-            candidates.push(
-                PathBuf::from(program_files)
-                    .join("LeagueToolkit")
-                    .join("ltk-tex-thumb-handler")
-                    .join(DLL_NAME),
-            );
+        if let Ok(installed) = installed_dll_path() {
+            candidates.push(installed);
         }
 
         for path in &candidates {
@@ -93,7 +108,7 @@ mod windows_impl {
 
         bail!(
             "could not find {DLL_NAME}. Looked in:\n{}\n\
-             Install it with the thumbnail-handler script, or place the DLL next to this executable.",
+             Re-run the Windows quick-install script to download it, or place the DLL next to this executable.",
             candidates
                 .iter()
                 .map(|p| format!("  {}", p.display()))
@@ -160,21 +175,106 @@ mod windows_impl {
         TexOwnership::Unowned
     }
 
-    /// Bail early when not elevated: (un)registration writes to HKLM, and
-    /// without this check a non-elevated uninstall would no-op silently (the
-    /// DLL's removals are best-effort, so regsvr32 alone can't be trusted to
-    /// fail loudly).
-    fn ensure_elevated() -> Result<()> {
-        if RegKey::predef(HKEY_LOCAL_MACHINE)
+    /// Whether this process can write HKLM. (Un)registration needs it, and the
+    /// check also guards uninstall: the DLL's removals are best-effort, so
+    /// regsvr32 alone can't be trusted to fail loudly when unelevated.
+    fn is_elevated() -> bool {
+        RegKey::predef(HKEY_LOCAL_MACHINE)
             .open_subkey_with_flags("SOFTWARE", KEY_WRITE)
-            .is_err()
-        {
+            .is_ok()
+    }
+
+    /// Set in the environment of the elevated relaunch so it can never chain
+    /// into another elevation attempt.
+    const ELEVATED_ENV: &str = "LTK_TEX_UTILS_ELEVATED";
+
+    /// Re-run the current command elevated instead of failing: `Start-Process
+    /// -Verb RunAs` shows the standard UAC consent prompt and starts an
+    /// elevated copy. Elevation severs the console connection, so the copy
+    /// runs in a *hidden* window through `cmd /c` with everything redirected
+    /// to a temp file (cmd redirection is raw bytes; Windows PowerShell's `>`
+    /// would write UTF-16), and the file is printed here once it exits - the
+    /// user never sees or interacts with the elevated window. The exit code is
+    /// forwarded so scripts still observe failures. Exit code 1223 is Windows'
+    /// ERROR_CANCELLED: the user declined the UAC prompt.
+    fn relaunch_elevated() -> Result<()> {
+        use std::io::IsTerminal;
+
+        // Without a user at a console there is nobody to answer the UAC
+        // prompt, and an elevated run that still can't write HKLM must not
+        // chain into another prompt.
+        if std::env::var_os(ELEVATED_ENV).is_some() || !std::io::stdin().is_terminal() {
             bail!(
                 "this command writes to HKLM and must be run from an elevated \
                  (Administrator) terminal"
             );
         }
-        Ok(())
+
+        let exe = std::env::current_exe().wrap_err("failed to resolve the current executable")?;
+        // Forward the original arguments minus any `--pause`: a pause prompt
+        // in the hidden console would wait for an Enter that can never come.
+        let mut args: Vec<String> = Vec::new();
+        let mut raw = std::env::args().skip(1);
+        while let Some(arg) = raw.next() {
+            if arg == "--pause" {
+                raw.next();
+                continue;
+            }
+            if arg.starts_with("--pause=") {
+                continue;
+            }
+            args.push(arg);
+        }
+        let log =
+            std::env::temp_dir().join(format!("ltk-tex-utils-elevated-{}.log", std::process::id()));
+
+        println!(
+            "{} administrator access is needed - requesting elevation (UAC)...",
+            "note:".yellow().bold()
+        );
+
+        let cmd_line = format!(
+            "/d /s /c \"\"{exe}\" {args} > \"{log}\" 2>&1\"",
+            exe = exe.display(),
+            args = args
+                .iter()
+                .map(|a| format!("\"{a}\""))
+                .collect::<Vec<_>>()
+                .join(" "),
+            log = log.display(),
+        );
+        let command = format!(
+            "$ErrorActionPreference = 'Stop'; \
+             try {{ $p = Start-Process -FilePath 'cmd.exe' -ArgumentList {cmd_line} \
+             -Verb RunAs -WindowStyle Hidden -Wait -PassThru }} \
+             catch {{ exit 1223 }}; \
+             exit $p.ExitCode",
+            cmd_line = ps_quote(&cmd_line),
+        );
+        let status = Command::new("powershell.exe")
+            .args([
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                &command,
+            ])
+            .env(ELEVATED_ENV, "1")
+            .status()
+            .wrap_err("failed to launch powershell.exe")?;
+
+        if let Ok(output) = std::fs::read_to_string(&log) {
+            print!("{output}");
+        }
+        let _ = std::fs::remove_file(&log);
+
+        match status.code() {
+            Some(0) => Ok(()),
+            Some(1223) => bail!("the elevation request was declined"),
+            _ => bail!("the elevated command failed"),
+        }
     }
 
     /// Run `regsvr32` against the DLL, optionally enabling override mode.
@@ -204,9 +304,39 @@ mod windows_impl {
         Ok(())
     }
 
+    /// Copy the DLL into its Program Files home. Explorer keeps a registered
+    /// DLL loaded, which blocks overwriting but not renaming - a loaded copy is
+    /// moved aside and the leftover cleaned up on the next run.
+    fn stage_installed_dll(source: &PathBuf, dest: &PathBuf) -> Result<()> {
+        let dir = dest.parent().expect("installed DLL path has a parent");
+        std::fs::create_dir_all(dir)
+            .wrap_err_with(|| format!("failed to create {}", dir.display()))?;
+
+        let stale = dest.with_extension("dll.old");
+        let _ = std::fs::remove_file(&stale);
+
+        if std::fs::copy(source, dest).is_err() {
+            if dest.is_file() {
+                std::fs::rename(dest, &stale)
+                    .wrap_err_with(|| format!("failed to move aside {}", dest.display()))?;
+            }
+            std::fs::copy(source, dest).wrap_err_with(|| {
+                format!("failed to copy {} to {}", source.display(), dest.display())
+            })?;
+        }
+        Ok(())
+    }
+
     pub fn install(no_override: bool) -> Result<()> {
-        ensure_elevated()?;
-        let dll = find_dll()?;
+        if !is_elevated() {
+            return relaunch_elevated();
+        }
+
+        let source = find_dll()?;
+        let dll = installed_dll_path()?;
+        if source != dll {
+            stage_installed_dll(&source, &dll)?;
+        }
 
         // Unless the user opted out with --no-override, the DLL takes over
         // whatever currently competes for `.tex`: a foreign ProgID's
@@ -269,11 +399,30 @@ mod windows_impl {
     }
 
     pub fn uninstall() -> Result<()> {
-        ensure_elevated()?;
-        let dll = find_dll()?;
+        if !is_elevated() {
+            return relaunch_elevated();
+        }
+        let installed = installed_dll_path()?;
+        let dll = if installed.is_file() {
+            installed.clone()
+        } else {
+            find_dll()?
+        };
         // Unregistering triggers DllUnregisterServer, which also restores any
         // association that override mode took over.
         run_regsvr32(&dll, true, false)?;
+
+        // Best-effort removal of the installed copy; a copy still loaded by
+        // Explorer is renamed aside instead and cleaned up on the next install.
+        if dll == installed {
+            if std::fs::remove_file(&dll).is_err() && dll.is_file() {
+                let _ = std::fs::rename(&dll, dll.with_extension("dll.old"));
+            }
+            if let Some(dir) = dll.parent() {
+                let _ = std::fs::remove_dir(dir);
+            }
+        }
+
         println!(
             "{} Unregistered the .tex thumbnail & preview handler",
             "\u{2713}".green().bold()
@@ -333,8 +482,15 @@ mod windows_impl {
         println!("{}", ".tex thumbnail / preview handler".bold());
         println!();
 
-        match hkcr.open_subkey(format!("CLSID\\{CLSID_TEX_THUMB_HANDLER}")) {
-            Ok(_) => print_row(&good, "COM server", "registered"),
+        match hkcr
+            .open_subkey(format!("CLSID\\{CLSID_TEX_THUMB_HANDLER}\\InprocServer32"))
+            .and_then(|k| k.get_value::<String, _>(""))
+        {
+            Ok(path) => print_row(
+                &good,
+                "COM server",
+                format!("registered  {}", path.dimmed()),
+            ),
             Err(_) => print_row(&bad, "COM server", "not registered".dimmed()),
         }
 

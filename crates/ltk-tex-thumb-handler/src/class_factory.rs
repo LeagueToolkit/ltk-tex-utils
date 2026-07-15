@@ -9,12 +9,13 @@ use windows::Win32::Foundation::*;
 use windows::Win32::System::Com::*;
 use windows::core::*;
 
+use crate::explorer_command::CTexContextMenu_CreateInstance;
 use crate::preview_handler::CTexPreviewHandler_CreateInstance;
 use crate::property_handler::CTexPropertyHandler_CreateInstance;
 use crate::thumbnail_provider::CTexThumbProvider_CreateInstance;
 use crate::{
-    CLSID_TEX_PREVIEW_HANDLER, CLSID_TEX_PROPERTY_HANDLER, CLSID_TEX_THUMB_HANDLER, DllAddRef,
-    DllRelease,
+    CLSID_TEX_EXPLORER_COMMAND, CLSID_TEX_PREVIEW_HANDLER, CLSID_TEX_PROPERTY_HANDLER,
+    CLSID_TEX_THUMB_HANDLER, DllAddRef, DllRelease,
 };
 
 pub type PfnCreateInstance = fn(*const GUID, *mut *mut c_void) -> HRESULT;
@@ -37,6 +38,10 @@ pub const C_RGCLASSOBJECTINIT: &[ClassObjectInit] = &[
     ClassObjectInit {
         pClsid: &CLSID_TEX_PROPERTY_HANDLER,
         pfnCreate: CTexPropertyHandler_CreateInstance,
+    },
+    ClassObjectInit {
+        pClsid: &CLSID_TEX_EXPLORER_COMMAND,
+        pfnCreate: CTexContextMenu_CreateInstance,
     },
 ];
 

@@ -28,7 +28,7 @@ Run this in PowerShell (installs to a user-writable directory and updates `PATH`
 iwr -useb https://raw.githubusercontent.com/LeagueToolkit/ltk-tex-utils/main/scripts/install-windows.ps1 | iex
 ```
 
-This downloads the latest release, installs it to `%LOCALAPPDATA%\LeagueToolkit\ltk-tex-utils`, adds a stable `bin` shim to your user `PATH`, and makes `ltk-tex-utils` available in new terminals.
+This downloads the latest release (including the Explorer thumbnail-handler DLL), installs it to `%LOCALAPPDATA%\LeagueToolkit\ltk-tex-utils`, adds a stable `bin` shim to your user `PATH`, and makes `ltk-tex-utils` available in new terminals.
 
 ### From Releases
 
@@ -64,55 +64,37 @@ Install a shell extension that renders `.tex` previews directly in Windows Explo
   <img src="assets/thumb-provider-preview.webp" alt="TEX thumbnail provider preview in Windows Explorer" width="800">
 </div>
 
-Run PowerShell **as Administrator**, then:
+The [quick install](#windows-quick-install) already downloads the handler DLL next to the
+executable. Registration is machine-wide, so `handler install` copies the DLL to
+`%ProgramFiles%\LeagueToolkit\ltk-tex-thumb-handler` and registers that copy - the
+registration every account resolves never points into one user's profile. Install and
+uninstall need administrator rights: from a normal terminal they request elevation (UAC)
+and report back in the same terminal; an already-elevated terminal is used as-is.
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/LeagueToolkit/ltk-tex-utils/main/scripts/install-thumbnail-handler.ps1 | iex
+ltk-tex-utils handler install               # takes over .tex previews if another app owns them
+ltk-tex-utils handler install --no-override # coexist; never take over
+ltk-tex-utils handler status                # show registration state and mode
+ltk-tex-utils handler uninstall             # unregister and restore any overridden association
 ```
 
-This will:
-
-- Download `ltk-tex-thumb-handler.dll` from the latest release
-- Install it to `%ProgramFiles%\LeagueToolkit\ltk-tex-thumb-handler`
-- Register the COM DLL with Windows Explorer
-
 You may need to restart Windows Explorer (or your computer) for thumbnails to appear.
+
+(Installed via the old `install-thumbnail-handler.ps1` script? It used the same Program
+Files directory, so the `handler` commands manage that copy in place.)
 
 #### Coexisting with other `.tex` handlers
 
 If another application already owns the `.tex` type - other tools (Photoshop, a
-LaTeX editor) may claim it - the installer takes over its **thumbnail and
+LaTeX editor) may claim it - `handler install` takes over its **thumbnail and
 preview** slots so League previews win. It also removes competing `OpenWithProgids`
 entries (e.g. VS Code's, which otherwise makes Explorer's Type column read
 "LaTeX Source File" instead of "LoL Texture File"); those apps stay available in
 the **Open with** menu. Everything is backed up and restored on uninstall, and
 the double-click **"open"** association is never touched.
 
-To opt out of the takeover, pass `-NoOverride` to the script (or `--no-override`
-to `handler install`); the current owner's thumbnail/preview/type name then keeps
-winning and ours stays out of the way.
-
-#### Managing the handler from the CLI
-
-If you already have `ltk-tex-utils` installed and the DLL present (next to the
-executable, or in the default install directory above), you can register it from
-an **elevated** terminal instead of the script:
-
-```powershell
-ltk-tex-utils handler install               # takes over .tex previews if another app owns them
-ltk-tex-utils handler install --no-override # coexist; never take over
-ltk-tex-utils handler status                # show registration state and mode
-ltk-tex-utils handler uninstall            # unregister and restore any overridden association
-```
-
-To uninstall, use `ltk-tex-utils handler uninstall`, or run this in an Administrator
-**Command Prompt** (it uses `cmd`-style `%ProgramFiles%` expansion):
-
-```cmd
-regsvr32.exe /u "%ProgramFiles%\LeagueToolkit\ltk-tex-thumb-handler\ltk_tex_thumb_handler.dll"
-```
-
-(`regsvr32 /u` also restores any association that override mode took over.)
+To opt out of the takeover, pass `--no-override`; the current owner's
+thumbnail/preview/type name then keeps winning and ours stays out of the way.
 
 ### Context menu (right-click)
 
@@ -122,13 +104,24 @@ Register right-click context-menu entries for `.tex`, `.dds`, and `.png` files a
 ltk-tex-utils shell install
 ```
 
-This adds a cascading **ltk-tex-utils** menu with:
+This adds a cascading **LTK Toolz** menu with:
 
 - `.tex` files: **Convert to PNG** / **Convert to DDS** (top mip, written next to the file)
 - `.dds` / `.png` files: **Convert to TEX** (BC3, mipmaps on - the safest defaults)
 - Folders: **Convert all .tex to PNG** / **Convert all .tex to DDS** (recursive)
 
 Multi-selection works too - each selected file is converted next to itself.
+
+On Windows 11 - provided the handler DLL sits next to `ltk-tex-utils.exe` (the quick
+install sets this up) and Windows **Developer Mode** is on (Settings > System > For
+developers) - the menu is registered
+as a packaged command instead, which appears both in the modern (top-level) context
+menu and under "Show more options". Without those prerequisites, `shell install` falls
+back to classic registry entries, which only render under "Show more options".
+
+Prefer the classic entries anyway? `shell install --classic` skips the packaged menu;
+the classic menu stays pinned to the top of the `.tex` context menu (the packaged one
+can't control its placement), at the cost of only rendering under "Show more options".
 
 ```powershell
 ltk-tex-utils shell status     # show what is registered and where it points
@@ -265,8 +258,8 @@ ltk-tex-utils shell uninstall
 
 ### Handler (Windows)
 
-Registers the `.tex` thumbnail/preview handler DLL (requires an **elevated** terminal;
-see [Coexisting with other `.tex` handlers](#coexisting-with-other-tex-handlers)):
+Registers the `.tex` thumbnail/preview handler DLL described [above](#thumbnail-provider)
+(elevates via UAC when the terminal isn't an administrator one):
 
 ```bash
 ltk-tex-utils handler install               # takes over .tex previews if another app owns them
