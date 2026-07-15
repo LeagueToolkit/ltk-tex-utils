@@ -23,12 +23,27 @@ pub const IID_ITHUMBNAILPROVIDER: &str = "{e357fccd-a995-4576-b01f-234630154e96}
 /// IID_IPreviewHandler - Explorer's preview ShellEx slot.
 pub const IID_IPREVIEWHANDLER: &str = "{8895b1c6-b41f-4c1c-a562-0d564250836f}";
 
+/// ProgID we claim as the `.tex` default when no other application owns the
+/// type, so Explorer's Type column shows [`PROGID_TEX_FRIENDLY_NAME`] instead
+/// of a description scavenged from some OpenWith entry (e.g. VS Code's "LaTeX
+/// Source File"). Never claimed over a foreign owner, and released on
+/// unregister only if still ours.
+pub const PROGID_TEX: &str = "LeagueToolkit.Tex";
+/// Friendly type name Explorer displays for [`PROGID_TEX`].
+pub const PROGID_TEX_FRIENDLY_NAME: &str = "LoL Texture File";
+
 /// HKLM key where override mode backs up the association it takes over, so that
 /// unregistering can restore the previous owner.
 pub const OVERRIDE_BACKUP_KEY: &str =
     "SOFTWARE\\LeagueToolkit\\ltk-tex-thumb-handler\\OverrideBackup";
 
+/// Subkey of [`OVERRIDE_BACKUP_KEY`] recording the foreign `.tex\OpenWithProgids`
+/// entries install removed (one subkey per source hive: `HKCU` / `HKLM`);
+/// restored on unregister.
+pub const OVERRIDE_BACKUP_OPENWITH_SUBKEY: &str = "OpenWithProgids";
+
 /// Environment variable the DLL's `DllRegisterServer` reads to enable override
-/// mode. Set by the CLI (`handler install --override`) and the install script
-/// before invoking `regsvr32`, because COM registration entrypoints take no args.
+/// mode. Set by the CLI (`handler install`, unless `--no-override`) and the
+/// install script before invoking `regsvr32`, because COM registration
+/// entrypoints take no args.
 pub const OVERRIDE_ENV: &str = "LTK_TEX_HANDLER_OVERRIDE";

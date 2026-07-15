@@ -4,10 +4,11 @@ param(
     [string]$Owner = "LeagueToolkit",
     [string]$Repo  = "ltk-tex-utils",
     [string]$InstallDir = "$env:ProgramFiles\LeagueToolkit\ltk-tex-thumb-handler",
-    # Take over .tex thumbnails/previews from any application that already owns the
-    # type. NOTE: .tex is also the LaTeX source extension. The double-click "open"
-    # association is left untouched, and uninstalling restores the previous owner.
-    [switch]$Override
+    # Do NOT take over .tex thumbnails/previews from an application that already
+    # owns the type. By default the installer takes them over (backing up the
+    # previous owner so uninstalling restores it; the double-click "open"
+    # association is left untouched).
+    [switch]$NoOverride
 )
 
 $ErrorActionPreference = 'Stop'
@@ -66,21 +67,12 @@ if (!(Test-Path -LiteralPath $dllPath)) {
     throw "ltk_tex_thumb_handler.dll not found after download: $dllPath"
 }
 
-# Decide whether to take over an existing .tex association.
-$doOverride = [bool]$Override
-if (-not $doOverride) {
-    Write-Host "'.tex' is also the LaTeX source extension." -ForegroundColor Yellow
-    try {
-        $ans = Read-Host "Override any existing .tex thumbnail/preview handler? (y/N)"
-        if ($ans -match '^(y|yes)$') { $doOverride = $true }
-    } catch {
-        # piped through
-    }
-}
-if ($doOverride) {
-    Write-Host "Override mode: taking over .tex previews from any existing owner." -ForegroundColor Yellow
-    Write-Host "(the double-click 'open' association is left untouched; uninstall restores it)" -ForegroundColor Gray
-    
+# Take over any existing .tex thumbnail/preview owner unless opted out. The
+# takeover is backed up (uninstall restores the previous owner) and never
+# touches the double-click "open" association.
+if (-not $NoOverride) {
+    Write-Host "Taking over .tex previews from any existing owner (uninstall restores it)." -ForegroundColor Yellow
+
     # The DLL's DllRegisterServer reads this; Start-Process inherits it.
     $env:LTK_TEX_HANDLER_OVERRIDE = '1'
 }

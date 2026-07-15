@@ -13,9 +13,10 @@ use windows::Win32::UI::Shell::PropertiesSystem::{
     PSRegisterPropertySchema, PSUnregisterPropertySchema,
 };
 use windows::core::*;
-use winreg::HKEY;
-use winreg::RegKey;
-use winreg::enums::{HKEY_CLASSES_ROOT, HKEY_LOCAL_MACHINE, KEY_WRITE};
+use winreg::enums::{
+    HKEY_CLASSES_ROOT, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, KEY_WRITE, REG_NONE,
+};
+use winreg::{HKEY, RegKey, RegValue};
 
 pub const SZ_CLSID_TEXTHUMBHANDLER: &str = ltk_tex_handler_shared::CLSID_TEX_THUMB_HANDLER;
 pub const SZ_TEXTHUMBHANDLER: &str = "LTK TEX Thumbnail Handler";
@@ -37,6 +38,11 @@ const SZ_PREVIEWHANDLERS_KEY: &str =
 
 pub const SZ_CLSID_TEXPROPERTYHANDLER: &str = ltk_tex_handler_shared::CLSID_TEX_PROPERTY_HANDLER;
 pub const SZ_TEXPROPERTYHANDLER: &str = "LTK TEX Property Handler";
+
+/// Our ProgID for `.tex`, claimed as the extension's default when no other
+/// application owns it - this is what Explorer's Type column displays.
+pub const SZ_PROGID_TEX: &str = ltk_tex_handler_shared::PROGID_TEX;
+pub const SZ_PROGID_TEX_FRIENDLY_NAME: &str = ltk_tex_handler_shared::PROGID_TEX_FRIENDLY_NAME;
 /// Per-extension property handler registration lives under this HKLM key.
 const SZ_PROPERTYHANDLERS_KEY: &str =
     "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\PropertySystem\\PropertyHandlers";
@@ -57,6 +63,18 @@ const PROGID_HANDLER_SLOTS: &[(&str, &str)] = &[
 /// Where override mode stashes the pre-takeover registry state so that
 /// `unregister_server` can put the original association back.
 const SZ_OVERRIDE_BACKUP_KEY: &str = ltk_tex_handler_shared::OVERRIDE_BACKUP_KEY;
+/// Backup subkey for the `.tex\OpenWithProgids` entries removed by override mode.
+const SZ_OPENWITH_BACKUP_SUBKEY: &str = ltk_tex_handler_shared::OVERRIDE_BACKUP_OPENWITH_SUBKEY;
+
+/// The hives where `.tex\OpenWithProgids` entries can live. Addressed explicitly
+/// rather than through the merged HKCR view so each removed entry is restored to
+/// the hive it came from.
+const OPENWITH_HIVES: &[(&str, HKEY)] = &[
+    ("HKCU", HKEY_CURRENT_USER),
+    ("HKLM", HKEY_LOCAL_MACHINE),
+];
+/// `.tex\OpenWithProgids` path relative to a hive's classes root.
+const OPENWITH_TEX_PATH: &str = "Software\\Classes\\.tex\\OpenWithProgids";
 
 pub struct RegistryEntry {
     pub hkeyRoot: HKEY,
@@ -154,6 +172,106 @@ fn hkcr_default(path: &str) -> Option<String> {
         .and_then(|k| k.get_value::<String, _>("").ok())
 }
 
+/// Claim the `.tex` default ProgID with our friendly type name when no other
+/// application owns it, so Explorer's Type column reads
+/// [`SZ_PROGID_TEX_FRIENDLY_NAME`] instead of a description scavenged from an
+/// OpenWith entry. A foreign owner keeps the slot - the type name belongs to
+/// whoever owns the extension.
+fn claim_tex_progid() -> Result<()> {
+    let current = hkcr_default(".tex").unwrap_or_default();
+    if !current.trim().is_empty() {
+        return Ok(());
+    }
+    create_reg_key_and_set_value(&RegistryEntry::new(
+        HKEY_CLASSES_ROOT,
+        ".tex",
+        None::<String>,
+        SZ_PROGID_TEX,
+    ))
+}
+
+/// Undo [`claim_tex_progid`] (best effort): clear the `.tex` default ProgID
+/// only if it is still ours, leaving any other owner untouched.
+fn release_tex_progid() {
+    let current = hkcr_default(".tex").unwrap_or_default();
+    if current.trim() != SZ_PROGID_TEX {
+        return;
+    }
+    if let Ok(key) = RegKey::predef(HKEY_CLASSES_ROOT).open_subkey_with_flags(".tex", KEY_WRITE) {
+        let _ = key.set_value("", &"");
+    }
+}
+
+/// Remove foreign `.tex\OpenWithProgids` entries (recording them under the
+/// backup key so [`restore_openwith_override`] can put them back). When no
+/// UserChoice is set, the shell's association arbiter resolves the file type
+/// through this list *in preference to* the extension's default ProgID, so a
+/// competing entry (e.g. VS Code's `VSCode.tex` = "LaTeX Source File") steals
+/// Explorer's Type column even after [`claim_tex_progid`]. The apps stay
+/// reachable in the Open With menu via `OpenWithList`, and any UserChoice the
+/// user has made is not touched.
+fn apply_openwith_override() -> Result<()> {
+    for (hive_name, hive) in OPENWITH_HIVES {
+        let Ok(key) = RegKey::predef(*hive)
+            .open_subkey_with_flags(OPENWITH_TEX_PATH, KEY_READ | KEY_WRITE)
+        else {
+            continue;
+        };
+        let foreign: Vec<String> = key
+            .enum_values()
+            .filter_map(|v| v.ok())
+            .map(|(name, _)| name)
+            .filter(|name| !name.is_empty() && !name.eq_ignore_ascii_case(SZ_PROGID_TEX))
+            .collect();
+        if foreign.is_empty() {
+            continue;
+        }
+
+        let (backup, _) = RegKey::predef(HKEY_LOCAL_MACHINE)
+            .create_subkey(format!(
+                "{SZ_OVERRIDE_BACKUP_KEY}\\{SZ_OPENWITH_BACKUP_SUBKEY}\\{hive_name}"
+            ))
+            .map_err(|_| Error::from(E_FAIL))?;
+        for name in foreign {
+            backup
+                .set_value(&name, &"")
+                .map_err(|_| Error::from(E_FAIL))?;
+            let _ = key.delete_value(&name);
+        }
+    }
+    Ok(())
+}
+
+/// Undo [`apply_openwith_override`] from the backup key (best effort): recreate
+/// each removed entry in the hive it was taken from. Entries are written as the
+/// empty `REG_NONE` values the OpenWithProgids convention prescribes (their data
+/// is always empty; only the value *name* carries information).
+fn restore_openwith_override() {
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    for (hive_name, hive) in OPENWITH_HIVES {
+        let Ok(backup) = hklm.open_subkey(format!(
+            "{SZ_OVERRIDE_BACKUP_KEY}\\{SZ_OPENWITH_BACKUP_SUBKEY}\\{hive_name}"
+        )) else {
+            continue;
+        };
+        let Ok((key, _)) = RegKey::predef(*hive).create_subkey(OPENWITH_TEX_PATH) else {
+            continue;
+        };
+        for (name, _) in backup.enum_values().filter_map(|v| v.ok()) {
+            let _ = key.set_raw_value(
+                &name,
+                &RegValue {
+                    bytes: Vec::new(),
+                    vtype: REG_NONE,
+                },
+            );
+        }
+    }
+    let _ = hklm.delete_subkey_all(format!(
+        "{SZ_OVERRIDE_BACKUP_KEY}\\{SZ_OPENWITH_BACKUP_SUBKEY}"
+    ));
+}
+
 /// Take over the `.tex` ProgID's thumbnail/preview ShellEx slots, recording the
 /// prior state under [`SZ_OVERRIDE_BACKUP_KEY`] so [`restore_progid_override`]
 /// can undo it. No-op when `.tex` has no ProgID - extension-level registration
@@ -161,9 +279,10 @@ fn hkcr_default(path: &str) -> Option<String> {
 /// "open" verb is left untouched; only the thumbnail/preview slots move.
 fn apply_progid_override() -> Result<()> {
     // The ProgID currently associated with `.tex` (e.g. a LaTeX editor's).
+    // Ours doesn't count: its slots already point at our handlers.
     let progid = hkcr_default(".tex").unwrap_or_default();
     let progid = progid.trim();
-    if progid.is_empty() {
+    if progid.is_empty() || progid == SZ_PROGID_TEX {
         return Ok(());
     }
 
@@ -321,6 +440,33 @@ pub unsafe fn register_server(
             None::<String>,
             SZ_CLSID_TEXPREVIEWHANDLER,
         ),
+        // ---- Our ProgID (Explorer's Type column when we own `.tex`) ----
+        RegistryEntry::new(
+            HKEY_CLASSES_ROOT,
+            SZ_PROGID_TEX,
+            None::<String>,
+            SZ_PROGID_TEX_FRIENDLY_NAME,
+        ),
+        RegistryEntry::new(
+            HKEY_CLASSES_ROOT,
+            SZ_PROGID_TEX,
+            Some("FriendlyTypeName"),
+            SZ_PROGID_TEX_FRIENDLY_NAME,
+        ),
+        // Explorer resolves ShellEx through the ProgID before the bare
+        // extension, so mirror the thumbnail/preview slots under ours.
+        RegistryEntry::new(
+            HKEY_CLASSES_ROOT,
+            format!("{SZ_PROGID_TEX}\\ShellEx\\{SZ_THUMBNAILPROVIDER_IID}"),
+            None::<String>,
+            SZ_CLSID_TEXTHUMBHANDLER,
+        ),
+        RegistryEntry::new(
+            HKEY_CLASSES_ROOT,
+            format!("{SZ_PROGID_TEX}\\ShellEx\\{SZ_PREVIEWHANDLER_IID}"),
+            None::<String>,
+            SZ_CLSID_TEXPREVIEWHANDLER,
+        ),
         // ---- Property handler (Details pane, columns, tooltips, search) ----
         RegistryEntry::new(
             HKEY_CLASSES_ROOT,
@@ -401,9 +547,16 @@ pub unsafe fn register_server(
     // work without it; only our labelled TEX Format / Mip / Alpha rows need it).
     unsafe { register_schema(&dll_path) };
 
-    // Opt-in: seize the ProgID slots from whoever currently owns `.tex`.
+    // Claim the `.tex` default ProgID (type name) if nobody else holds it.
+    claim_tex_progid()?;
+
+    // Unless the user opted out: seize the ProgID slots from whoever currently
+    // owns `.tex`, and clear competing OpenWithProgids entries so the Type
+    // column resolves to our friendly name. Both are backed up and restored on
+    // unregister.
     if override_existing {
         apply_progid_override()?;
+        apply_openwith_override()?;
     }
 
     // Disable process isolation for better debugging
@@ -426,8 +579,16 @@ pub unsafe fn register_server(
 pub unsafe fn unregister_server() -> Result<()> {
     let hkcr = RegKey::predef(HKEY_CLASSES_ROOT);
 
-    // Put back any association override mode took over (no-op if never applied).
+    // Put back anything override mode took over (no-ops if never applied). The
+    // OpenWithProgids restore must run first: restore_progid_override deletes
+    // the whole backup key when it finishes.
+    restore_openwith_override();
     restore_progid_override();
+
+    // Give up the `.tex` default ProgID if it is still ours, then remove the
+    // ProgID key itself.
+    release_tex_progid();
+    let _ = hkcr.delete_subkey_all(SZ_PROGID_TEX);
 
     let _ = hkcr.delete_subkey_all(format!("CLSID\\{}", SZ_CLSID_TEXTHUMBHANDLER));
     let _ = hkcr.delete_subkey_all(format!(".tex\\ShellEx\\{}", SZ_THUMBNAILPROVIDER_IID));
@@ -460,6 +621,17 @@ pub unsafe fn unregister_server() -> Result<()> {
         let _ = assoc.delete_value("InfoTip");
     }
     unsafe { unregister_schema() };
+
+    // The removals above are best-effort so a partially-registered state still
+    // unregisters cleanly - but that must not mask access-denied. Verify the
+    // COM registration is actually gone (it is not when run non-elevated) so
+    // regsvr32 reports failure instead of a silent no-op.
+    if hkcr
+        .open_subkey(format!("CLSID\\{}", SZ_CLSID_TEXTHUMBHANDLER))
+        .is_ok()
+    {
+        return Err(Error::from(E_ACCESSDENIED));
+    }
 
     Ok(())
 }
