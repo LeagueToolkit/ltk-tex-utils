@@ -10,13 +10,11 @@
 
 Command-line utilities for working with League of Legends `.tex` textures, powered by `league-toolkit`. Inspect, encode, and decode TEX files, with a Windows Explorer thumbnail provider for previewing them in place.
 
-## Features
+<div align="center">
 
-- **Info**: print a TEX file's format, dimensions, mipmap count, and resource type
-- **Encode**: convert standard images (PNG/DDS/JPG/TGA/BMP/…) into `.tex`, with optional mipmap generation
-- **Decode**: convert `.tex` back to common image formats, including DDS
-- **Batch conversion**: pass multiple files or whole folders to `encode`/`decode`; outputs are written next to each input
-- **Windows Explorer integration**: a thumbnail provider for `.tex` previews, right-click context-menu entries, and drag-and-drop onto the executable (see below)
+**[Installation](#installation)** · **[Context menu](#context-menu-right-click)** · **[Thumbnail handler](#thumbnail-provider)** · **[CLI commands](#cli-commands)**
+
+</div>
 
 ## Installation
 
@@ -58,10 +56,21 @@ On Windows, ltk-tex-utils can be driven straight from Explorer - no terminal req
 
 ### Thumbnail provider
 
-Install a shell extension that renders `.tex` previews directly in Windows Explorer.
+Install a shell extension that renders `.tex` previews directly in Windows Explorer: thumbnails in the file grid, a preview pane with an alpha checkerboard and a metadata overlay, and texture properties fed into Explorer's property system.
 
 <div align="center">
-  <img src="assets/thumb-provider-preview.webp" alt="TEX thumbnail provider preview in Windows Explorer" width="800">
+  <img src="assets/explorer-preview-pane.webp" alt=".tex thumbnails in Windows Explorer with the preview pane showing a texture on an alpha checkerboard and a metadata overlay" width="800">
+  <p><em>Thumbnails and the preview pane — alpha checkerboard plus a dimensions/format/mips/alpha overlay.</em></p>
+</div>
+
+<div align="center">
+  <img src="assets/explorer-details-pane.webp" alt="Explorer Details pane showing Dimensions, TEX Format, Mip levels, and Has alpha for a selected .tex file" width="800">
+  <p><em>The Details pane shows a texture's dimensions, TEX format, mip count, and whether it has alpha.</em></p>
+</div>
+
+<div align="center">
+  <img src="assets/explorer-columns.webp" alt="Explorer list view with TEX Format and Mip levels as columns, filtering by BC3" width="800">
+  <p><em><strong>TEX Format</strong> and <strong>Mip levels</strong> also work as regular Explorer columns — sortable, groupable, and filterable.</em></p>
 </div>
 
 The [quick install](#windows-quick-install) already downloads the handler DLL next to the
@@ -78,7 +87,7 @@ ltk-tex-utils handler status                # show registration state and mode
 ltk-tex-utils handler uninstall             # unregister and restore any overridden association
 ```
 
-You may need to restart Windows Explorer (or your computer) for thumbnails to appear.
+**You may need to restart Windows Explorer (or your computer) for thumbnails to appear.**
 
 (Installed via the old `install-thumbnail-handler.ps1` script? It used the same Program
 Files directory, so the `handler` commands manage that copy in place.)
@@ -98,30 +107,41 @@ thumbnail/preview/type name then keeps winning and ours stays out of the way.
 
 ### Context menu (right-click)
 
-Register right-click context-menu entries for `.tex`, `.dds`, and `.png` files and for folders. The entries are per-user (`HKCU`), so no admin rights are needed:
+Register right-click context-menu entries for `.tex`, `.dds`, `.png` files and for folders. The entries are per-user, no admin rights are needed:
 
 ```powershell
 ltk-tex-utils shell install
 ```
 
-This adds a cascading **LTK Toolz** menu with:
+This adds an **LTK Toolz** menu with:
 
-- `.tex` files: **Convert to PNG** / **Convert to DDS** (top mip, written next to the file)
+- `.tex` files: **Convert to PNG** / **Convert to DDS** (largest mip, written next to the file)
 - `.dds` / `.png` files: **Convert to TEX** (BC3, mipmaps on - the safest defaults)
 - Folders: **Convert all .tex to PNG** / **Convert all .tex to DDS** (recursive)
 
 Multi-selection works too - each selected file is converted next to itself.
 
-On Windows 11 - provided the handler DLL sits next to `ltk-tex-utils.exe` (the quick
-install sets this up) and Windows **Developer Mode** is on (Settings > System > For
-developers) - the menu is registered
-as a packaged command instead, which appears both in the modern (top-level) context
-menu and under "Show more options". Without those prerequisites, `shell install` falls
-back to classic registry entries, which only render under "Show more options".
+<div align="center">
+  <table>
+    <tr>
+      <th>Windows 11 menu</th>
+      <th>Classic menu</th>
+    </tr>
+    <tr>
+      <td valign="top"><img src="assets/context-menu-win11.webp" alt="LTK Toolz cascading entry in the Windows 11 context menu with Convert to PNG and Convert to DDS" width="420"></td>
+      <td valign="top"><img src="assets/context-menu-classic.webp" alt="LTK Toolz cascading entry in the classic context menu with Convert to PNG and Convert to DDS" width="420"></td>
+    </tr>
+  </table>
+</div>
 
-Prefer the classic entries anyway? `shell install --classic` skips the packaged menu;
-the classic menu stays pinned to the top of the `.tex` context menu (the packaged one
-can't control its placement), at the cost of only rendering under "Show more options".
+On **Windows 11** we always try installing into the modern context menu API since it also makes it show up in the classic shell. This comes some with a few caveats, mainly:
+- **You must enable `Developer Mode` in Windows settings under: `System` > `Advanced`**
+
+  <img src="assets/developer-mode-toggle.webp" alt="Developer Mode toggle switched on in Windows Settings" width="700">
+
+- **Why ?** - Windows 11 uses a new API for the modern context menu, which requires any application adding commands to it to be signed with a trusted code signing certificate, otherwise the OS refuses to display the menu as we expect. Our tool is currently **not signed** which means the only way to go around it is to enable Developer Mode in the OS settings.
+- **What if I don't want to or can't enable it?** - *Fear not*, if we see that Developer Mode is toggled off, we can continue with installing the classic shell integration without any issues. It will show up when you click "Show more options". For those that want the classic shell, they can run `shell install --classic`
+- **Windows 10** gets the classic shell by default
 
 ```powershell
 ltk-tex-utils shell status     # show what is registered and where it points
@@ -138,7 +158,7 @@ Drag files (or folders) onto `ltk-tex-utils.exe` and they are converted next to 
 - Any standard image (PNG/DDS/JPG/TGA/BMP/…) is encoded to a sibling `.tex` (BC3, mipmaps on).
 - A folder is searched recursively for `.tex` files, which are decoded to sibling `.png`s.
 
-## Usage
+## CLI commands
 
 ```bash
 # Basic command structure
@@ -153,28 +173,6 @@ ltk-tex-utils --version
 Most commands accept inputs either via `-i/--input` or positionally, so `encode input.png` and `encode -i input.png` are equivalent. `encode` and `decode` accept any number of files and folders; folders are searched recursively for convertible files, and each output is written next to its input.
 
 A global `--pause <never|on-error|always>` flag keeps the console window open before exiting - useful when the tool is launched from Explorer.
-
-### Info
-
-Prints basic metadata about a TEX file.
-
-Common flags:
-
-- `-i, --input <INPUT>`: path to the `.tex` file to inspect
-
-```bash
-ltk-tex-utils info -i path/to/texture.tex
-```
-
-Example output:
-
-```text
-info: path/to/texture.tex
-    format : Bc3
-    dimensions : 1024x1024
-    mipmaps : 10 (has_mipmaps: true)
-    resource : Texture2D
-```
 
 ### Encode
 
@@ -244,6 +242,28 @@ ltk-tex-utils decode texture.tex -m 2
 
 # Batch: every .tex under a folder, PNGs written next to each file
 ltk-tex-utils decode extracted-wad/
+```
+
+### Info
+
+Prints basic metadata about a TEX file.
+
+Common flags:
+
+- `-i, --input <INPUT>`: path to the `.tex` file to inspect
+
+```bash
+ltk-tex-utils info -i path/to/texture.tex
+```
+
+Example output:
+
+```text
+info: path/to/texture.tex
+    format : Bc3
+    dimensions : 1024x1024
+    mipmaps : 10 (has_mipmaps: true)
+    resource : Texture2D
 ```
 
 ### Shell (Windows)
