@@ -23,3 +23,5 @@ release = true
 name = "ltk-tex-handler-shared"
 publish = false
 release = false
+# prevents release-plz from failing
+git_tag_name = "{{ package }}-v{{ version }}"
